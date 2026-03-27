@@ -1,5 +1,88 @@
 import { useState, useEffect, useRef } from "react";
 
+// ── Themes ────────────────────────────────────────────────────────────────────
+export const THEMES = {
+  "dusty-rose": {
+    id: "dusty-rose",
+    name: "Dusty Rose & Sage",
+    preview: ["#fdf6ee", "#5c2d1e", "#c9956b", "#e8d5b0"],
+    colors: {
+      bg: "#fdf6ee",
+      cardBg: "#fffdf7",
+      primary: "#5c2d1e",
+      accent: "#c9956b",
+      accentLight: "#e8d5b0",
+      text: "#a07850",
+      textDark: "#5c2d1e",
+      envelopeBody: "#c8976a",
+      envelopeSide: "#b5835a",
+      envelopeBottom: "#d4a574",
+      envelopeFlap: "#e76f51",
+      petalColors: ["#e76f51", "#f4a261", "#e9c46a", "#d4a574"],
+    },
+  },
+  "midnight-gold": {
+    id: "midnight-gold",
+    name: "Midnight Navy & Gold",
+    preview: ["#0f1b2d", "#d4af37", "#c9a227", "#2a3f5f"],
+    colors: {
+      bg: "#0f1b2d",
+      cardBg: "#162236",
+      primary: "#d4af37",
+      accent: "#c9a227",
+      accentLight: "#2a3f5f",
+      text: "#8fa8c8",
+      textDark: "#e8d8a0",
+      envelopeBody: "#1e3a5f",
+      envelopeSide: "#163050",
+      envelopeBottom: "#254875",
+      envelopeFlap: "#d4af37",
+      petalColors: ["#d4af37", "#f0d060", "#c9a227", "#e8c840"],
+    },
+  },
+  "sage-garden": {
+    id: "sage-garden",
+    name: "Sage Garden",
+    preview: ["#f2f5f0", "#2d4a35", "#7a9e7e", "#c8dfc8"],
+    colors: {
+      bg: "#f2f5f0",
+      cardBg: "#f8fbf7",
+      primary: "#2d4a35",
+      accent: "#7a9e7e",
+      accentLight: "#c8dfc8",
+      text: "#5a7a5e",
+      textDark: "#2d4a35",
+      envelopeBody: "#7a9e7e",
+      envelopeSide: "#6a8e6e",
+      envelopeBottom: "#9ab89e",
+      envelopeFlap: "#4a7a50",
+      petalColors: ["#7a9e7e", "#a8c8a8", "#5a8e60", "#c8dfc8"],
+    },
+  },
+  "blush-cream": {
+    id: "blush-cream",
+    name: "Blush & Cream",
+    preview: ["#fdf0f0", "#7a3050", "#e8a0b0", "#f5d5df"],
+    colors: {
+      bg: "#fdf0f0",
+      cardBg: "#fff8f8",
+      primary: "#7a3050",
+      accent: "#e8a0b0",
+      accentLight: "#f5d5df",
+      text: "#b07080",
+      textDark: "#7a3050",
+      envelopeBody: "#e8a0b0",
+      envelopeSide: "#d88898",
+      envelopeBottom: "#f0b8c8",
+      envelopeFlap: "#c07090",
+      petalColors: ["#e8a0b0", "#f5c0d0", "#c07090", "#f0d0d8"],
+    },
+  },
+};
+
+const DEFAULT_THEME_ID = "dusty-rose";
+
+// ── Default State ─────────────────────────────────────────────────────────────
 const DEFAULT_STATE = {
   bride: "",
   groom: "",
@@ -8,6 +91,7 @@ const DEFAULT_STATE = {
   venue: "",
   address: "",
   dressCode: "",
+  themeId: DEFAULT_THEME_ID,
   story: [
     { year: "2018", label: "First met", text: "A rainy Tuesday at a mutual friend's party. Marco spilled coffee on Isabella's book — she laughed instead of being mad." },
     { year: "2020", label: "First date", text: "A picnic in the park that turned into a four-hour conversation about everything and nothing." },
@@ -26,6 +110,7 @@ const DEFAULT_STATE = {
   ],
 };
 
+// ── Shared Styles (neutral, don't depend on theme) ────────────────────────────
 const s = {
   input: {
     padding: "10px 14px", border: "1px solid #e0d0c0", borderRadius: 6,
@@ -83,6 +168,72 @@ function SectionHeader({ title, subtitle }) {
   );
 }
 
+// ── Theme Switcher ────────────────────────────────────────────────────────────
+function ThemeSwitcher({ currentThemeId, onChange }) {
+  return (
+    <div style={s.section}>
+      <SectionHeader
+        title="Invite Theme"
+        subtitle="Choose a colour palette. It applies instantly to the wedding invite page."
+      />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+        {Object.values(THEMES).map((theme) => {
+          const isActive = theme.id === currentThemeId;
+          const [bg, primary, accent, light] = theme.preview;
+          return (
+            <button
+              key={theme.id}
+              onClick={() => onChange(theme.id)}
+              style={{
+                border: `2px solid ${isActive ? primary : "#e0d0c0"}`,
+                borderRadius: 12,
+                background: isActive ? "#fffdf7" : "#fff",
+                padding: "16px 18px",
+                cursor: "pointer",
+                textAlign: "left",
+                fontFamily: "inherit",
+                boxShadow: isActive ? `0 0 0 3px ${accent}40` : "none",
+                transition: "all 0.2s",
+                position: "relative",
+              }}
+            >
+              {/* Colour swatches */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                {[bg, primary, accent, light].map((c, i) => (
+                  <div key={i} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: "1px solid rgba(0,0,0,0.08)", flexShrink: 0 }} />
+                ))}
+              </div>
+
+              {/* Mini invite preview */}
+              <div style={{ background: bg, borderRadius: 8, padding: "10px 12px", marginBottom: 10, border: `1px solid ${light}` }}>
+                <div style={{ height: 6, width: "60%", background: accent, borderRadius: 3, marginBottom: 5, opacity: 0.6 }} />
+                <div style={{ height: 10, width: "80%", background: primary, borderRadius: 3, marginBottom: 4 }} />
+                <div style={{ height: 10, width: "70%", background: primary, borderRadius: 3, marginBottom: 6 }} />
+                <div style={{ height: 1, background: light, marginBottom: 6 }} />
+                <div style={{ height: 6, width: "45%", background: accent, borderRadius: 3, opacity: 0.5 }} />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, color: "#3a1a0e", fontWeight: isActive ? 700 : 400, fontFamily: "Georgia, serif", fontStyle: isActive ? "italic" : "normal" }}>
+                  {theme.name}
+                </span>
+                {isActive && (
+                  <span style={{ fontSize: 10, background: primary, color: "#fff", borderRadius: 20, padding: "3px 10px", letterSpacing: 1, textTransform: "uppercase" }}>
+                    Active
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <p style={{ fontSize: 11, color: "#b08060", marginTop: 14, fontStyle: "italic" }}>
+        💡 Click Save All Changes in the Settings tab after selecting a theme to apply it to the invite.
+      </p>
+    </div>
+  );
+}
+
 // ── RSVP Dashboard ────────────────────────────────────────────────────────────
 function RSVPDashboard() {
   const [rsvps, setRsvps] = useState([]);
@@ -108,7 +259,6 @@ function RSVPDashboard() {
     .filter(r => r.name?.toLowerCase().includes(search.toLowerCase()));
 
   const deleteRsvp = (idx) => {
-    // find the real index in original rsvps array
     const target = filtered[idx];
     const realIdx = rsvps.indexOf(target);
     const updated = rsvps.filter((_, i) => i !== realIdx);
@@ -135,9 +285,7 @@ function RSVPDashboard() {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = "rsvps.csv";
-    a.click();
+    a.href = url; a.download = "rsvps.csv"; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -151,26 +299,14 @@ function RSVPDashboard() {
 
   return (
     <div style={s.section}>
-      <SectionHeader
-        title="RSVP Responses"
-        subtitle="All guest responses submitted through the invite page."
-      />
-
-      {/* Stats */}
+      <SectionHeader title="RSVP Responses" subtitle="All guest responses submitted through the invite page." />
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         {statBox("Total RSVPs", rsvps.length, "#5c2d1e")}
         {statBox("Attending", attending.length, "#4a7c4e", `${totalGuests} seat${totalGuests !== 1 ? "s" : ""} total`)}
         {statBox("Declining", declining.length, "#c0392b")}
       </div>
-
-      {/* Controls */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <input
-          style={{ ...s.input, flex: 1, minWidth: 160, fontSize: 13 }}
-          placeholder="Search by name..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+        <input style={{ ...s.input, flex: 1, minWidth: 160, fontSize: 13 }} placeholder="Search by name..." value={search} onChange={e => setSearch(e.target.value)} />
         <div style={{ display: "flex", gap: 6 }}>
           {["all", "attending", "declining"].map(f => (
             <button key={f} onClick={() => setFilter(f)}
@@ -180,52 +316,32 @@ function RSVPDashboard() {
           ))}
         </div>
         {rsvps.length > 0 && (
-          <button onClick={exportCSV}
-            style={{ padding: "8px 14px", borderRadius: 20, border: "1px solid #c9956b", background: "transparent", color: "#c9956b", fontSize: 11, cursor: "pointer", letterSpacing: 0.5, fontFamily: "inherit" }}>
+          <button onClick={exportCSV} style={{ padding: "8px 14px", borderRadius: 20, border: "1px solid #c9956b", background: "transparent", color: "#c9956b", fontSize: 11, cursor: "pointer", letterSpacing: 0.5, fontFamily: "inherit" }}>
             ↓ Export CSV
           </button>
         )}
       </div>
-
-      {/* List */}
       {rsvps.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "32px 0", color: "#c9956b", fontStyle: "italic", fontSize: 14 }}>
-          No RSVPs yet. They'll appear here once guests respond.
-        </div>
+        <div style={{ textAlign: "center", padding: "32px 0", color: "#c9956b", fontStyle: "italic", fontSize: 14 }}>No RSVPs yet. They'll appear here once guests respond.</div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "24px 0", color: "#c9956b", fontStyle: "italic", fontSize: 13 }}>
-          No results match your search.
-        </div>
+        <div style={{ textAlign: "center", padding: "24px 0", color: "#c9956b", fontStyle: "italic", fontSize: 13 }}>No results match your search.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.map((r, i) => (
             <div key={i} style={{ background: "#fffdf7", border: `1px solid ${r.attend ? "#c8e6c9" : "#ffccbc"}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 12 }}>
-              {/* Avatar */}
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: r.attend ? "#4a7c4e" : "#c0392b", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, flexShrink: 0, fontFamily: "Georgia, serif" }}>
                 {(r.name || "?")[0].toUpperCase()}
               </div>
-
-              {/* Info */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontFamily: "'Georgia',serif", fontSize: 15, color: "#3a1a0e", fontWeight: 600 }}>{r.name}</span>
                   <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 20, background: r.attend ? "#e8f5e9" : "#fbe9e7", color: r.attend ? "#4a7c4e" : "#c0392b", letterSpacing: 0.5, textTransform: "uppercase" }}>
                     {r.attend ? "Attending" : "Declining"}
                   </span>
-                  {r.attend && (
-                    <span style={{ fontSize: 11, color: "#a07050" }}>
-                      👥 {r.guests || 1} guest{(r.guests || 1) !== 1 ? "s" : ""}
-                    </span>
-                  )}
+                  {r.attend && <span style={{ fontSize: 11, color: "#a07050" }}>👥 {r.guests || 1} guest{(r.guests || 1) !== 1 ? "s" : ""}</span>}
                 </div>
-                {r.note ? (
-                  <p style={{ fontSize: 12, color: "#a07050", margin: "6px 0 0", fontStyle: "italic", lineHeight: 1.5 }}>
-                    "{r.note}"
-                  </p>
-                ) : null}
+                {r.note && <p style={{ fontSize: 12, color: "#a07050", margin: "6px 0 0", fontStyle: "italic", lineHeight: 1.5 }}>"{r.note}"</p>}
               </div>
-
-              {/* Delete */}
               {deleteConfirm === i ? (
                 <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
                   <span style={{ fontSize: 11, color: "#c0392b" }}>Remove?</span>
@@ -239,8 +355,6 @@ function RSVPDashboard() {
           ))}
         </div>
       )}
-
-      {/* Clear all */}
       {rsvps.length > 0 && (
         <div style={{ marginTop: 16, textAlign: "right" }}>
           {deleteConfirm === "all" ? (
@@ -262,18 +376,14 @@ function RSVPDashboard() {
 
 // ── Story Editor ──────────────────────────────────────────────────────────────
 function StoryEditor({ story, onChange }) {
-  const update = (i, field, val) =>
-    onChange(story.map((item, idx) => (idx === i ? { ...item, [field]: val } : item)));
+  const update = (i, field, val) => onChange(story.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
   const add = () => onChange([...story, { year: "", label: "", text: "" }]);
   const remove = (i) => onChange(story.filter((_, idx) => idx !== i));
   const move = (i, dir) => {
-    const next = [...story];
-    const swap = i + dir;
+    const next = [...story]; const swap = i + dir;
     if (swap < 0 || swap >= next.length) return;
-    [next[i], next[swap]] = [next[swap], next[i]];
-    onChange(next);
+    [next[i], next[swap]] = [next[swap], next[i]]; onChange(next);
   };
-
   return (
     <div style={s.section}>
       <SectionHeader title="Our Story" subtitle="Add as many milestones as you like. Use ↑ ↓ to reorder." />
@@ -309,42 +419,27 @@ function StoryEditor({ story, onChange }) {
 // ── Gallery Editor ────────────────────────────────────────────────────────────
 function GalleryEditor({ photos, onChange }) {
   const fileInputRef = useRef(null);
-
   const handleFiles = (e) => {
-    const files = Array.from(e.target.files);
-    files.forEach(file => {
+    Array.from(e.target.files).forEach(file => {
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        onChange(prev => [...prev, { url: ev.target.result, caption: file.name.replace(/\.[^.]+$/, "") }]);
-      };
+      reader.onload = (ev) => onChange(prev => [...prev, { url: ev.target.result, caption: file.name.replace(/\.[^.]+$/, "") }]);
       reader.readAsDataURL(file);
     });
     e.target.value = "";
   };
-
-  const updateCaption = (i, val) =>
-    onChange(photos.map((p, idx) => (idx === i ? { ...p, caption: val } : p)));
+  const updateCaption = (i, val) => onChange(photos.map((p, idx) => idx === i ? { ...p, caption: val } : p));
   const remove = (i) => onChange(photos.filter((_, idx) => idx !== i));
   const move = (i, dir) => {
-    const next = [...photos];
-    const swap = i + dir;
+    const next = [...photos]; const swap = i + dir;
     if (swap < 0 || swap >= next.length) return;
-    [next[i], next[swap]] = [next[swap], next[i]];
-    onChange(next);
+    [next[i], next[swap]] = [next[swap], next[i]]; onChange(next);
   };
-
   return (
     <div style={s.section}>
       <SectionHeader title="Gallery" subtitle="Upload photos from your device. Edit captions and reorder as needed." />
       <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleFiles} />
-      <button style={{ ...s.addBtn, marginBottom: 16 }} onClick={() => fileInputRef.current.click()}>
-        📷 Upload Photos (select multiple)
-      </button>
-      {photos.length === 0 && (
-        <p style={{ fontSize: 13, color: "#c9956b", textAlign: "center", padding: "12px 0", fontStyle: "italic" }}>
-          No photos yet — click above to upload!
-        </p>
-      )}
+      <button style={{ ...s.addBtn, marginBottom: 16 }} onClick={() => fileInputRef.current.click()}>📷 Upload Photos (select multiple)</button>
+      {photos.length === 0 && <p style={{ fontSize: 13, color: "#c9956b", textAlign: "center", padding: "12px 0", fontStyle: "italic" }}>No photos yet — click above to upload!</p>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: 12 }}>
         {photos.map((p, i) => (
           <div key={i} style={{ ...s.card, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -366,18 +461,14 @@ function GalleryEditor({ photos, onChange }) {
 
 // ── Program Editor ────────────────────────────────────────────────────────────
 function ProgramEditor({ program, onChange }) {
-  const update = (i, field, val) =>
-    onChange(program.map((p, idx) => (idx === i ? { ...p, [field]: val } : p)));
+  const update = (i, field, val) => onChange(program.map((p, idx) => idx === i ? { ...p, [field]: val } : p));
   const add = () => onChange([...program, { time: "", event: "" }]);
   const remove = (i) => onChange(program.filter((_, idx) => idx !== i));
   const move = (i, dir) => {
-    const next = [...program];
-    const swap = i + dir;
+    const next = [...program]; const swap = i + dir;
     if (swap < 0 || swap >= next.length) return;
-    [next[i], next[swap]] = [next[swap], next[i]];
-    onChange(next);
+    [next[i], next[swap]] = [next[swap], next[i]]; onChange(next);
   };
-
   return (
     <div style={s.section}>
       <SectionHeader title="Program" subtitle="Add, remove, or reorder schedule items." />
@@ -399,10 +490,11 @@ function ProgramEditor({ program, onChange }) {
 function TabNav({ active, onChange }) {
   const tabs = [
     { id: "rsvp", label: "💌 RSVPs" },
-    { id: "settings", label: "⚙️ Wedding Settings" },
+    { id: "theme", label: "🎨 Theme" },
+    { id: "settings", label: "⚙️ Settings" },
   ];
   return (
-    <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
+    <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
       {tabs.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)}
           style={{ padding: "10px 22px", borderRadius: 30, border: "1.5px solid", borderColor: active === t.id ? "#5c2d1e" : "#e0d0c0", background: active === t.id ? "#5c2d1e" : "#fffdf7", color: active === t.id ? "#fff" : "#a07050", fontSize: 13, cursor: "pointer", fontFamily: "Georgia, serif", fontStyle: active === t.id ? "italic" : "normal", transition: "all 0.2s" }}>
@@ -422,8 +514,8 @@ export default function AdminPage() {
   useEffect(() => {
     const data = JSON.parse(localStorage.getItem("wedding_config") || "{}");
     setWedding(prev => ({
-      ...prev,
-      ...data,
+      ...prev, ...data,
+      themeId: data.themeId || DEFAULT_THEME_ID,
       story: data.story?.length ? data.story : prev.story,
       photos: data.photos?.length ? data.photos : prev.photos,
       program: data.program?.length ? data.program : prev.program,
@@ -431,6 +523,7 @@ export default function AdminPage() {
   }, []);
 
   const handleChange = (e) => setWedding(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const setTheme = (themeId) => setWedding(prev => ({ ...prev, themeId }));
   const setStory = (story) => setWedding(prev => ({ ...prev, story }));
   const setPhotos = (updater) => setWedding(prev => ({ ...prev, photos: typeof updater === "function" ? updater(prev.photos) : updater }));
   const setProgram = (program) => setWedding(prev => ({ ...prev, program }));
@@ -444,72 +537,46 @@ export default function AdminPage() {
   return (
     <div style={{ padding: "40px 24px", maxWidth: 700, margin: "0 auto", fontFamily: "Georgia, serif", background: "#fdf6ee", minHeight: "100vh" }}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet" />
-
-      {/* Header */}
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 38, color: "#5c2d1e", fontStyle: "italic", margin: "0 0 6px" }}>
-          Admin Dashboard
-        </h1>
-        <p style={{ color: "#b08060", fontSize: 13, margin: 0 }}>
-          Manage your wedding invite and track guest responses.
-        </p>
+        <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 38, color: "#5c2d1e", fontStyle: "italic", margin: "0 0 6px" }}>Admin Dashboard</h1>
+        <p style={{ color: "#b08060", fontSize: 13, margin: 0 }}>Manage your wedding invite and track guest responses.</p>
       </div>
 
       <TabNav active={tab} onChange={setTab} />
 
-      {/* RSVP Tab */}
       {tab === "rsvp" && <RSVPDashboard />}
 
-      {/* Settings Tab */}
+      {tab === "theme" && (
+        <>
+          <ThemeSwitcher currentThemeId={wedding.themeId} onChange={setTheme} />
+          <button onClick={handleSave} style={{ ...s.saveBtn, background: savedMsg ? "#4a7c4e" : "#5c2d1e" }}>
+            {savedMsg ? "✓ Theme Saved!" : "Save Theme"}
+          </button>
+          {savedMsg && <p style={{ textAlign: "center", color: "#5c2d1e", fontSize: 13, marginTop: 10, fontStyle: "italic" }}>Refresh the invite page to see the new theme.</p>}
+        </>
+      )}
+
       {tab === "settings" && (
         <>
-          {/* Basic Details */}
           <div style={s.section}>
             <SectionHeader title="Basic Details" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div>
-                <label style={s.label}>Bride's Name</label>
-                <input style={s.input} name="bride" value={wedding.bride} onChange={handleChange} placeholder="Isabella Santos" />
-              </div>
-              <div>
-                <label style={s.label}>Groom's Name</label>
-                <input style={s.input} name="groom" value={wedding.groom} onChange={handleChange} placeholder="Marco Reyes" />
-              </div>
-              <div>
-                <label style={s.label}>Wedding Date</label>
-                <input style={s.input} name="date" value={wedding.date} onChange={handleChange} type="date" />
-              </div>
-              <div>
-                <label style={s.label}>Time (24h format)</label>
-                <input style={s.input} name="time" value={wedding.time} onChange={handleChange} placeholder="16:00" />
-              </div>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={s.label}>Venue Name</label>
-                <input style={s.input} name="venue" value={wedding.venue} onChange={handleChange} placeholder="The Grand Rose Garden" />
-              </div>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={s.label}>Address</label>
-                <input style={s.input} name="address" value={wedding.address} onChange={handleChange} placeholder="123 Blossom Lane, Tagaytay City, Cavite" />
-              </div>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={s.label}>Dress Code</label>
-                <input style={s.input} name="dressCode" value={wedding.dressCode} onChange={handleChange} placeholder="Formal Attire — Dusty Rose & Sage" />
-              </div>
+              <div><label style={s.label}>Bride's Name</label><input style={s.input} name="bride" value={wedding.bride} onChange={handleChange} placeholder="Isabella Santos" /></div>
+              <div><label style={s.label}>Groom's Name</label><input style={s.input} name="groom" value={wedding.groom} onChange={handleChange} placeholder="Marco Reyes" /></div>
+              <div><label style={s.label}>Wedding Date</label><input style={s.input} name="date" value={wedding.date} onChange={handleChange} type="date" /></div>
+              <div><label style={s.label}>Time (24h format)</label><input style={s.input} name="time" value={wedding.time} onChange={handleChange} placeholder="16:00" /></div>
+              <div style={{ gridColumn: "1 / -1" }}><label style={s.label}>Venue Name</label><input style={s.input} name="venue" value={wedding.venue} onChange={handleChange} placeholder="The Grand Rose Garden" /></div>
+              <div style={{ gridColumn: "1 / -1" }}><label style={s.label}>Address</label><input style={s.input} name="address" value={wedding.address} onChange={handleChange} placeholder="123 Blossom Lane, Tagaytay City, Cavite" /></div>
+              <div style={{ gridColumn: "1 / -1" }}><label style={s.label}>Dress Code</label><input style={s.input} name="dressCode" value={wedding.dressCode} onChange={handleChange} placeholder="Formal Attire — Dusty Rose & Sage" /></div>
             </div>
           </div>
-
           <StoryEditor story={wedding.story} onChange={setStory} />
           <GalleryEditor photos={wedding.photos} onChange={setPhotos} />
           <ProgramEditor program={wedding.program} onChange={setProgram} />
-
           <button onClick={handleSave} style={{ ...s.saveBtn, background: savedMsg ? "#4a7c4e" : "#5c2d1e" }}>
             {savedMsg ? "✓ Saved Successfully!" : "Save All Changes"}
           </button>
-          {savedMsg && (
-            <p style={{ textAlign: "center", color: "#5c2d1e", fontSize: 13, marginTop: 10, fontStyle: "italic" }}>
-              Refresh the invite page to see your updates.
-            </p>
-          )}
+          {savedMsg && <p style={{ textAlign: "center", color: "#5c2d1e", fontSize: 13, marginTop: 10, fontStyle: "italic" }}>Refresh the invite page to see your updates.</p>}
         </>
       )}
     </div>
