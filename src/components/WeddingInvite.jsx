@@ -28,8 +28,6 @@ const THEMES = {
     envelopeBody: "#e8a0b0", envelopeSide: "#d88898", envelopeBottom: "#f0b8c8",
     envelopeFlap: "#c07090", petalColors: ["#e8a0b0", "#f5c0d0", "#c07090", "#f0d0d8"],
   },
-
-  // ── NEW ──────────────────────────────────────────────────────────────────
   "lavender-mist": {
     bg: "#f5f3fb", cardBg: "#faf8ff", primary: "#4a2d7a", accent: "#9b7ec8",
     accentLight: "#d8cef0", text: "#7a6a9a", textDark: "#4a2d7a",
@@ -43,7 +41,6 @@ const THEMES = {
     envelopeFlap: "#3a3530", petalColors: ["#8a7a6a", "#b0a090", "#5a5048", "#d8d0c8"],
   },
 };
-
 
 const DEFAULT_THEME = THEMES["dusty-rose"];
 
@@ -84,6 +81,242 @@ function formatTime(timeStr) {
 function buildMapsUrl(address) {
   if (!address) return "https://maps.google.com";
   return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
+}
+
+// ── ICS / Calendar helpers ────────────────────────────────────────────────────
+
+/**
+ * Builds an ICS file string with:
+ *  - The wedding event on the wedding day
+ *  - A VALARM that fires 1 day (24 h) before the event
+ */
+function buildICS({ bride, groom, rawDate, timeStr, venue, address }) {
+  // rawDate = "YYYY-MM-DD", timeStr = "HH:MM" (24-h from DB)
+  const pad = (n) => String(n).padStart(2, "0");
+
+  let dtStart, dtEnd;
+  if (rawDate && timeStr) {
+    const [y, mo, d] = rawDate.split("-");
+    const [h, mi] = timeStr.split(":");
+    dtStart = `${y}${mo}${d}T${pad(h)}${pad(mi)}00`;
+    // assume 4-hour ceremony
+    const endH = parseInt(h) + 4;
+    dtEnd = `${y}${mo}${d}T${pad(endH)}${pad(mi)}00`;
+  } else if (rawDate) {
+    const [y, mo, d] = rawDate.split("-");
+    dtStart = `${y}${mo}${d}`;
+    dtEnd = `${y}${mo}${d}`;
+  } else {
+    return null;
+  }
+
+  const isAllDay = !timeStr;
+  const dtFormat = isAllDay
+    ? `DTSTART;VALUE=DATE:${dtStart}\nDTEND;VALUE=DATE:${dtEnd}`
+    : `DTSTART:${dtStart}\nDTEND:${dtEnd}`;
+
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//WeddingInvite//EN",
+    "BEGIN:VEVENT",
+    `UID:${Date.now()}@weddinginvite`,
+    dtFormat,
+    `SUMMARY:💍 Wedding of ${bride} & ${groom}`,
+    `DESCRIPTION:You are cordially invited to the wedding of ${bride} and ${groom}.`,
+    `LOCATION:${venue}${address ? `, ${address}` : ""}`,
+    "BEGIN:VALARM",
+    "TRIGGER:-P1D",          // 1 day before
+    "ACTION:DISPLAY",
+    `DESCRIPTION:Reminder: ${bride} & ${groom}'s wedding is tomorrow! 💍`,
+    "END:VALARM",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  return ics;
+}
+
+function downloadICS(icsString, filename = "wedding.ics") {
+  const blob = new Blob([icsString], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function buildGoogleCalendarUrl({ bride, groom, rawDate, timeStr, venue, address }) {
+  if (!rawDate) return "#";
+  const pad = (n) => String(n).padStart(2, "0");
+  let dates;
+  if (timeStr) {
+    const [y, mo, d] = rawDate.split("-");
+    const [h, mi] = timeStr.split(":");
+    const startH = parseInt(h);
+    const endH = startH + 4;
+    dates = `${y}${mo}${d}T${pad(startH)}${pad(mi)}00/${y}${mo}${d}T${pad(endH)}${pad(mi)}00`;
+  } else {
+    const [y, mo, d] = rawDate.split("-");
+    dates = `${y}${mo}${d}/${y}${mo}${d}`;
+  }
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: `💍 Wedding of ${bride} & ${groom}`,
+    dates,
+    details: `You are cordially invited to the wedding of ${bride} and ${groom}.`,
+    location: `${venue}${address ? `, ${address}` : ""}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+// ── Detect platform ───────────────────────────────────────────────────────────
+function detectPlatform() {
+  const ua = navigator.userAgent || "";
+  if (/iPad|iPhone|iPod/.test(ua)) return "ios";
+  if (/android/i.test(ua)) return "android";
+  return "other";
+}
+
+// ── Calendar Modal ────────────────────────────────────────────────────────────
+function CalendarModal({ wedding, onClose }) {
+  const { theme } = wedding;
+  const platform = detectPlatform();
+
+  const icsString = buildICS({
+    bride: wedding.bride,
+    groom: wedding.groom,
+    rawDate: wedding.rawDate,
+    timeStr: wedding.rawTime,
+    venue: wedding.venue,
+    address: wedding.address,
+  });
+
+  const googleUrl = buildGoogleCalendarUrl({
+    bride: wedding.bride,
+    groom: wedding.groom,
+    rawDate: wedding.rawDate,
+    timeStr: wedding.rawTime,
+    venue: wedding.venue,
+    address: wedding.address,
+  });
+
+  const handleICS = () => {
+    if (icsString) downloadICS(icsString, "wedding-invite.ics");
+    onClose();
+  };
+
+  const handleGoogle = () => {
+    window.open(googleUrl, "_blank");
+    onClose();
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+        zIndex: 999, padding: "0 0 0 0",
+      }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 28, stiffness: 300 }}
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: 480, background: theme.cardBg,
+          borderRadius: "24px 24px 0 0", padding: "32px 24px 40px",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.18)",
+        }}
+      >
+        {/* Handle */}
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: theme.accentLight, margin: "0 auto 24px" }} />
+
+        <p style={{
+          fontFamily: "'Cormorant Garamond',serif", fontSize: 11,
+          letterSpacing: 4, color: theme.accent, textTransform: "uppercase",
+          textAlign: "center", marginBottom: 8,
+        }}>
+          don't miss it
+        </p>
+        <h3 style={{
+          fontFamily: "'Cormorant Garamond',serif", fontSize: 26,
+          color: theme.primary, fontStyle: "italic", textAlign: "center", marginBottom: 6,
+        }}>
+          Save the Date 💍
+        </h3>
+        <p style={{
+          fontSize: 13, color: theme.text, textAlign: "center",
+          lineHeight: 1.6, marginBottom: 28,
+        }}>
+          Add the wedding to your calendar and we'll remind you<br />
+          <strong style={{ color: theme.primary }}>the day before</strong> — so you're never late to the party! 🎉
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* iOS / Android — ICS opens natively in Calendar app */}
+          {(platform === "ios" || platform === "android") && (
+            <button onClick={handleICS} style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              padding: "15px 20px", borderRadius: 14,
+              background: theme.primary, color: theme.cardBg,
+              border: "none", fontSize: 14, fontFamily: "inherit",
+              letterSpacing: 1, cursor: "pointer", fontWeight: 500,
+            }}>
+              <span style={{ fontSize: 20 }}>{platform === "ios" ? "🍎" : "📅"}</span>
+              Add to {platform === "ios" ? "Apple Calendar" : "Phone Calendar"}
+              <span style={{ fontSize: 11, opacity: 0.8, marginLeft: 4 }}>+ reminder</span>
+            </button>
+          )}
+
+          {/* Google Calendar — works on all platforms */}
+          <button onClick={handleGoogle} style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+            padding: "15px 20px", borderRadius: 14,
+            background: theme.cardBg, color: theme.primary,
+            border: `1.5px solid ${theme.accentLight}`, fontSize: 14,
+            fontFamily: "inherit", letterSpacing: 1, cursor: "pointer", fontWeight: 500,
+          }}>
+            <span style={{ fontSize: 20 }}>📆</span>
+            Add to Google Calendar
+          </button>
+
+          {/* Fallback ICS download for desktop / other */}
+          {platform === "other" && (
+            <button onClick={handleICS} style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              padding: "15px 20px", borderRadius: 14,
+              background: theme.cardBg, color: theme.primary,
+              border: `1.5px solid ${theme.accentLight}`, fontSize: 14,
+              fontFamily: "inherit", letterSpacing: 1, cursor: "pointer", fontWeight: 500,
+            }}>
+              <span style={{ fontSize: 20 }}>📥</span>
+              Download .ics (Outlook / Apple Mail)
+              <span style={{ fontSize: 11, opacity: 0.8, marginLeft: 4 }}>+ reminder</span>
+            </button>
+          )}
+        </div>
+
+        <button onClick={onClose} style={{
+          width: "100%", marginTop: 16, padding: "12px",
+          background: "transparent", border: "none",
+          color: theme.text, fontSize: 13, cursor: "pointer",
+          fontFamily: "inherit", letterSpacing: 1,
+        }}>
+          Maybe later
+        </button>
+      </motion.div>
+    </motion.div>
+  );
 }
 
 // ── Countdown Hook ────────────────────────────────────────────────────────────
@@ -255,28 +488,81 @@ function DateTimePage({ onNext, wedding }) {
   );
 }
 
+// ── UPDATED: VenuePage — no iframe, no API key ────────────────────────────────
 function VenuePage({ onNext, wedding }) {
   const { theme } = wedding;
+  const mapsUrl = buildMapsUrl(wedding.address);
+
   return (
     <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
       style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: 32, textAlign: "center", background: theme.bg }}>
+
       <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 12, letterSpacing: 5, color: theme.accent, textTransform: "uppercase", marginBottom: 24 }}>where to find us</p>
-      <div style={{ fontSize: 40, marginBottom: 16 }}>📍</div>
-      <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(28px,6vw,48px)", color: theme.primary, fontStyle: "italic", marginBottom: 8 }}>{wedding.venue}</h2>
-      <p style={{ fontSize: 14, color: theme.text, lineHeight: 1.8, marginBottom: 32 }}>{wedding.address}</p>
-      <div style={{ width: "min(480px,90vw)", borderRadius: 12, overflow: "hidden", border: `0.5px solid ${theme.accentLight}`, marginBottom: 24, height: 220 }}>
-        <iframe
-          title="venue map" width="100%" height="220"
-          style={{ border: 0, display: "block" }} loading="lazy"
-          src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&q=${encodeURIComponent(wedding.address || "Philippines")}`}
-        />
+
+      {/* Pin icon */}
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.15, type: "spring", bounce: 0.5 }}
+        style={{ fontSize: 52, marginBottom: 16 }}
+      >
+        📍
+      </motion.div>
+
+      {/* Venue name */}
+      <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(26px,6vw,46px)", color: theme.primary, fontStyle: "italic", marginBottom: 12, lineHeight: 1.2 }}>
+        {wedding.venue}
+      </h2>
+
+      {/* Address card */}
+      <div style={{
+        background: theme.cardBg,
+        border: `0.5px solid ${theme.accentLight}`,
+        borderRadius: 16,
+        padding: "20px 28px",
+        maxWidth: 420,
+        width: "100%",
+        marginBottom: 32,
+      }}>
+        <p style={{ fontSize: 14, color: theme.text, lineHeight: 1.9, margin: 0 }}>
+          {wedding.address}
+        </p>
       </div>
-      <motion.a href={wedding.mapsUrl} target="_blank" rel="noreferrer" whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-        style={{ display: "inline-block", padding: "12px 32px", border: `1px solid ${theme.primary}`, color: theme.primary, borderRadius: 40, fontSize: 12, letterSpacing: 3, textTransform: "uppercase", textDecoration: "none", marginBottom: 40 }}>
-        View on Google Maps
+
+      {/* Decorative divider */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32, width: "min(320px,80vw)" }}>
+        <div style={{ flex: 1, height: 0.5, background: theme.accentLight }} />
+        <span style={{ fontSize: 16, color: theme.accent }}>♡</span>
+        <div style={{ flex: 1, height: 0.5, background: theme.accentLight }} />
+      </div>
+
+      {/* Open in Google Maps CTA */}
+      <motion.a
+        href={mapsUrl}
+        target="_blank"
+        rel="noreferrer"
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.97 }}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "14px 32px",
+          background: theme.primary,
+          color: theme.cardBg,
+          borderRadius: 40,
+          fontSize: 12,
+          letterSpacing: 3,
+          textTransform: "uppercase",
+          textDecoration: "none",
+          marginBottom: 40,
+          fontFamily: "inherit",
+        }}
+      >
+        <span style={{ fontSize: 16 }}>🗺️</span>
+        Open in Google Maps
       </motion.a>
+
       <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} onClick={onNext}
-        style={{ padding: "14px 40px", background: theme.primary, color: theme.cardBg, border: "none", borderRadius: 40, fontSize: 12, letterSpacing: 3, textTransform: "uppercase", cursor: "pointer" }}>
+        style={{ padding: "14px 40px", background: "transparent", color: theme.primary, border: `1px solid ${theme.primary}`, borderRadius: 40, fontSize: 12, letterSpacing: 3, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>
         Continue
       </motion.button>
     </motion.div>
@@ -306,17 +592,14 @@ function StoryPage({ onNext, wedding }) {
         {wedding.story.map((item, i) => (
           <motion.div key={i} initial={{ opacity: 0, x: i % 2 === 0 ? -20 : 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }}
             style={{ display: "flex", gap: 20, alignItems: "flex-start", marginBottom: 32, textAlign: "left" }}>
-            {/* ── Date column ── */}
             <div style={{ minWidth: 120, textAlign: "right" }}>
               <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 13, color: theme.accent, fontStyle: "italic", lineHeight: 1.4 }}>
                 {new Date(item.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
               </div>
             </div>
-            {/* ── Timeline line + dot ── */}
             <div style={{ width: 1, background: theme.accentLight, minHeight: 60, marginTop: 6, flexShrink: 0, position: "relative" }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: theme.accent, position: "absolute", left: -3.5, top: 6 }} />
             </div>
-            {/* ── Description ── */}
             <div style={{ paddingTop: 4 }}>
               <div style={{ fontSize: 13, color: theme.text, lineHeight: 1.7 }}>{item.description}</div>
             </div>
@@ -400,19 +683,10 @@ function DetailsPage({ onNext, wedding }) {
         <div style={{ background: theme.cardBg, border: `0.5px solid ${theme.accentLight}`, borderRadius: 12, padding: "20px 24px", width: "100%", marginBottom: 40 }}>
           <p style={{ fontSize: 10, letterSpacing: 3, color: theme.accent, textTransform: "uppercase", marginBottom: 16 }}>⛪ Program</p>
           {wedding.program.map((item, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < wedding.program.length - 1 ? `0.5px solid ${theme.accentLight}` : "none" }}
-            >
-              <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 14, color: theme.accent, minWidth: 72, textAlign: "left" }}>
-                {item.time}
-              </span>
-              <span style={{ fontSize: 13, color: theme.primary, textAlign: "right", flex: 1 }}>
-                {item.event}
-              </span>
+            <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < wedding.program.length - 1 ? `0.5px solid ${theme.accentLight}` : "none" }}>
+              <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 14, color: theme.accent, minWidth: 72, textAlign: "left" }}>{item.time}</span>
+              <span style={{ fontSize: 13, color: theme.primary, textAlign: "right", flex: 1 }}>{item.event}</span>
             </motion.div>
           ))}
         </div>
@@ -430,25 +704,21 @@ function DetailsPage({ onNext, wedding }) {
   );
 }
 
+// ── UPDATED: RSVPPage — shows CalendarModal after successful submit ────────────
 function RSVPPage({ onNext, wedding }) {
   const { theme } = wedding;
 
-  const [form, setForm] = useState({
-    name: "",
-    attending: null,
-    message: ""
-  });
-
+  const [form, setForm] = useState({ name: "", attending: null, message: "" });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [showCalModal, setShowCalModal] = useState(false);
 
   const handleSubmit = async () => {
     if (!form.name.trim() || form.attending === null) {
       setError("Please enter your name and select if you're attending.");
       return;
     }
-
     setSubmitting(true);
     setError("");
 
@@ -471,10 +741,20 @@ function RSVPPage({ onNext, wedding }) {
     }
 
     setSubmitted(true);
-    setTimeout(onNext, 2200);
+    // Only prompt calendar if they're attending
+    if (form.attending) {
+      setTimeout(() => setShowCalModal(true), 800);
+    } else {
+      setTimeout(onNext, 2200);
+    }
   };
 
-  if (submitted) {
+  const handleCalModalClose = () => {
+    setShowCalModal(false);
+    setTimeout(onNext, 400);
+  };
+
+  if (submitted && !showCalModal) {
     return (
       <motion.div variants={pageVariants} initial="initial" animate="animate"
         style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", textAlign: "center", padding: 32, background: theme.bg }}>
@@ -494,73 +774,80 @@ function RSVPPage({ onNext, wedding }) {
   };
 
   return (
-    <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 24px", maxWidth: 480, margin: "0 auto", textAlign: "center", background: theme.bg }}>
+    <>
+      <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
+        style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 24px", maxWidth: 480, margin: "0 auto", textAlign: "center", background: theme.bg }}>
 
-      <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 12, letterSpacing: 5, color: theme.accent, textTransform: "uppercase", marginBottom: 12 }}>kindly reply</p>
-      <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(28px,6vw,44px)", color: theme.primary, fontStyle: "italic", marginBottom: 32 }}>Will you join us?</h2>
+        {submitted ? (
+          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+            <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 36, color: theme.primary, fontStyle: "italic", marginBottom: 8 }}>Thank you!</h2>
+            <p style={{ fontSize: 13, color: theme.text }}>Your RSVP has been received.</p>
+            <p style={{ fontSize: 13, color: theme.accent, marginTop: 8, fontStyle: "italic" }}>Adding to your calendar...</p>
+          </motion.div>
+        ) : (
+          <>
+            <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 12, letterSpacing: 5, color: theme.accent, textTransform: "uppercase", marginBottom: 12 }}>kindly reply</p>
+            <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(28px,6vw,44px)", color: theme.primary, fontStyle: "italic", marginBottom: 32 }}>Will you join us?</h2>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%", marginBottom: 24 }}>
-        <input
-          style={inputStyle}
-          placeholder="Your full name *"
-          value={form.name}
-          onChange={e => setForm({ ...form, name: e.target.value })}
-        />
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%", marginBottom: 24 }}>
+              <input
+                style={inputStyle}
+                placeholder="Your full name *"
+                value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+              />
+              <div style={{ display: "flex", gap: 12 }}>
+                {["Joyfully accepts", "Regretfully declines"].map((label, i) => {
+                  const isSelected = form.attending === (i === 0);
+                  return (
+                    <button key={i} onClick={() => setForm({ ...form, attending: i === 0 })}
+                      style={{
+                        flex: 1, padding: "12px 8px",
+                        border: `1.5px solid ${isSelected ? theme.primary : theme.accentLight}`,
+                        borderRadius: 8,
+                        background: isSelected ? theme.primary : theme.cardBg,
+                        color: isSelected ? theme.cardBg : theme.text,
+                        fontSize: 12, cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit"
+                      }}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <textarea
+                style={{ ...inputStyle, resize: "none", height: 100 }}
+                placeholder="A sweet note for the couple (optional)"
+                value={form.message}
+                onChange={e => setForm({ ...form, message: e.target.value })}
+              />
+            </div>
 
-        <div style={{ display: "flex", gap: 12 }}>
-          {["Joyfully accepts", "Regretfully declines"].map((label, i) => {
-            const isSelected = form.attending === (i === 0);
-            return (
-              <button
-                key={i}
-                onClick={() => setForm({ ...form, attending: i === 0 })}
-                style={{
-                  flex: 1, padding: "12px 8px",
-                  border: `1.5px solid ${isSelected ? theme.primary : theme.accentLight}`,
-                  borderRadius: 8,
-                  background: isSelected ? theme.primary : theme.cardBg,
-                  color: isSelected ? theme.cardBg : theme.text,
-                  fontSize: 12, cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit"
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+            {error && <p style={{ color: "#c0392b", fontSize: 13, marginBottom: 16, textAlign: "center" }}>{error}</p>}
 
-        <textarea
-          style={{ ...inputStyle, resize: "none", height: 100 }}
-          placeholder="A sweet note for the couple (optional)"
-          value={form.message}
-          onChange={e => setForm({ ...form, message: e.target.value })}
-        />
-      </div>
+            <motion.button
+              whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+              onClick={handleSubmit}
+              disabled={submitting || !form.name.trim() || form.attending === null}
+              style={{
+                padding: "14px 48px", background: theme.primary, color: theme.cardBg,
+                border: "none", borderRadius: 40, fontSize: 12, letterSpacing: 3,
+                textTransform: "uppercase", cursor: "pointer",
+                opacity: (form.name.trim() && form.attending !== null && !submitting) ? 1 : 0.6
+              }}>
+              {submitting ? "Sending..." : "Send RSVP"}
+            </motion.button>
+          </>
+        )}
+      </motion.div>
 
-      {error && <p style={{ color: "#c0392b", fontSize: 13, marginBottom: 16, textAlign: "center" }}>{error}</p>}
-
-      <motion.button
-        whileHover={{ scale: 1.04 }}
-        whileTap={{ scale: 0.97 }}
-        onClick={handleSubmit}
-        disabled={submitting || !form.name.trim() || form.attending === null}
-        style={{
-          padding: "14px 48px",
-          background: theme.primary,
-          color: theme.cardBg,
-          border: "none",
-          borderRadius: 40,
-          fontSize: 12,
-          letterSpacing: 3,
-          textTransform: "uppercase",
-          cursor: "pointer",
-          opacity: (form.name.trim() && form.attending !== null && !submitting) ? 1 : 0.6
-        }}
-      >
-        {submitting ? "Sending..." : "Send RSVP"}
-      </motion.button>
-    </motion.div>
+      {/* Calendar bottom sheet modal */}
+      <AnimatePresence>
+        {showCalModal && (
+          <CalendarModal wedding={wedding} onClose={handleCalModalClose} />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -636,7 +923,6 @@ export default function WeddingInvite({ adminId }) {
         const timeFormatted = formatTime(w.time);
         const mapsUrl = buildMapsUrl(w.address);
 
-        // ── Parse program
         const parseProgram = () => {
           try {
             const p = typeof w.program === "string" ? JSON.parse(w.program) : w.program;
@@ -644,7 +930,6 @@ export default function WeddingInvite({ adminId }) {
           } catch { return []; }
         };
 
-        // ── Parse milestone
         const parseMilestone = () => {
           try {
             const m = typeof w.milestone === "string" ? JSON.parse(w.milestone) : w.milestone;
@@ -656,7 +941,8 @@ export default function WeddingInvite({ adminId }) {
           id: w.id,
           bride: w.bride || DEFAULTS.bride,
           groom: w.groom || DEFAULTS.groom,
-          rawDate: w.date,
+          rawDate: w.date,           // "YYYY-MM-DD"
+          rawTime: w.time,           // "HH:MM" — kept raw for ICS generation
           dateLabel: dateLabel || DEFAULTS.dateLabel,
           day: day || DEFAULTS.day,
           time: timeFormatted || DEFAULTS.time,
@@ -664,7 +950,7 @@ export default function WeddingInvite({ adminId }) {
           address: w.address || DEFAULTS.address,
           dressCode: w.dress_code || DEFAULTS.dressCode,
           mapsUrl,
-          story: parseMilestone(),   // ← reads from milestone column
+          story: parseMilestone(),
           photos: Array.isArray(w.photos) ? w.photos : [],
           program: parseProgram(),
           theme,
