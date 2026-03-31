@@ -1,583 +1,612 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
+import { supabase } from "../supabaseclient";
 
-// ── Themes ────────────────────────────────────────────────────────────────────
-export const THEMES = {
-  "dusty-rose": {
+// ── All 6 themes ──────────────────────────────────────────────────────────────
+const THEMES = [
+  {
     id: "dusty-rose",
-    name: "Dusty Rose & Sage",
-    preview: ["#fdf6ee", "#5c2d1e", "#c9956b", "#e8d5b0"],
-    colors: {
-      bg: "#fdf6ee",
-      cardBg: "#fffdf7",
-      primary: "#5c2d1e",
-      accent: "#c9956b",
-      accentLight: "#e8d5b0",
-      text: "#a07850",
-      textDark: "#5c2d1e",
-      envelopeBody: "#c8976a",
-      envelopeSide: "#b5835a",
-      envelopeBottom: "#d4a574",
-      envelopeFlap: "#e76f51",
-      petalColors: ["#e76f51", "#f4a261", "#e9c46a", "#d4a574"],
-    },
+    label: "Dusty Rose",
+    description: "Warm terracotta & cream",
+    bg: "#fdf6ee", primary: "#5c2d1e", accent: "#c9956b", accentLight: "#e8d5b0",
+    preview: ["#5c2d1e", "#c9956b", "#e8d5b0", "#fdf6ee"],
   },
-  "midnight-gold": {
+  {
     id: "midnight-gold",
-    name: "Midnight Navy & Gold",
-    preview: ["#0f1b2d", "#d4af37", "#c9a227", "#2a3f5f"],
-    colors: {
-      bg: "#0f1b2d",
-      cardBg: "#162236",
-      primary: "#d4af37",
-      accent: "#c9a227",
-      accentLight: "#2a3f5f",
-      text: "#8fa8c8",
-      textDark: "#e8d8a0",
-      envelopeBody: "#1e3a5f",
-      envelopeSide: "#163050",
-      envelopeBottom: "#254875",
-      envelopeFlap: "#d4af37",
-      petalColors: ["#d4af37", "#f0d060", "#c9a227", "#e8c840"],
-    },
+    label: "Midnight Gold",
+    description: "Deep navy & champagne",
+    bg: "#0f1b2d", primary: "#d4af37", accent: "#c9a227", accentLight: "#2a3f5f",
+    preview: ["#d4af37", "#c9a227", "#2a3f5f", "#0f1b2d"],
   },
-  "sage-garden": {
+  {
     id: "sage-garden",
-    name: "Sage Garden",
-    preview: ["#f2f5f0", "#2d4a35", "#7a9e7e", "#c8dfc8"],
-    colors: {
-      bg: "#f2f5f0",
-      cardBg: "#f8fbf7",
-      primary: "#2d4a35",
-      accent: "#7a9e7e",
-      accentLight: "#c8dfc8",
-      text: "#5a7a5e",
-      textDark: "#2d4a35",
-      envelopeBody: "#7a9e7e",
-      envelopeSide: "#6a8e6e",
-      envelopeBottom: "#9ab89e",
-      envelopeFlap: "#4a7a50",
-      petalColors: ["#7a9e7e", "#a8c8a8", "#5a8e60", "#c8dfc8"],
-    },
+    label: "Sage Garden",
+    description: "Soft greens & botanical",
+    bg: "#f2f5f0", primary: "#2d4a35", accent: "#7a9e7e", accentLight: "#c8dfc8",
+    preview: ["#2d4a35", "#7a9e7e", "#c8dfc8", "#f2f5f0"],
   },
-  "blush-cream": {
+  {
     id: "blush-cream",
-    name: "Blush & Cream",
-    preview: ["#fdf0f0", "#7a3050", "#e8a0b0", "#f5d5df"],
-    colors: {
-      bg: "#fdf0f0",
-      cardBg: "#fff8f8",
-      primary: "#7a3050",
-      accent: "#e8a0b0",
-      accentLight: "#f5d5df",
-      text: "#b07080",
-      textDark: "#7a3050",
-      envelopeBody: "#e8a0b0",
-      envelopeSide: "#d88898",
-      envelopeBottom: "#f0b8c8",
-      envelopeFlap: "#c07090",
-      petalColors: ["#e8a0b0", "#f5c0d0", "#c07090", "#f0d0d8"],
-    },
+    label: "Blush Cream",
+    description: "Soft pinks & ivory",
+    bg: "#fdf0f0", primary: "#7a3050", accent: "#e8a0b0", accentLight: "#f5d5df",
+    preview: ["#7a3050", "#e8a0b0", "#f5d5df", "#fdf0f0"],
   },
-};
+  {
+    id: "lavender-mist",
+    label: "Lavender Mist",
+    description: "Dreamy purples & silver",
+    bg: "#f5f3fb", primary: "#4a2d7a", accent: "#9b7ec8", accentLight: "#d8cef0",
+    preview: ["#4a2d7a", "#9b7ec8", "#d8cef0", "#f5f3fb"],
+  },
+  {
+    id: "obsidian-pearl",
+    label: "Obsidian Pearl",
+    description: "Charcoal & ivory elegance",
+    bg: "#f8f6f2", primary: "#1a1a1a", accent: "#8a7a6a", accentLight: "#d8d0c8",
+    preview: ["#1a1a1a", "#8a7a6a", "#d8d0c8", "#f8f6f2"],
+  },
+];
 
-const DEFAULT_THEME_ID = "dusty-rose";
+// ── Login Screen ──────────────────────────────────────────────────────────────
+function LoginScreen({ loginData, setLoginData, handleLogin, loading, loginError }) {
+  const [showPassword, setShowPassword] = useState(false);
 
-// ── Default State ─────────────────────────────────────────────────────────────
-const DEFAULT_STATE = {
-  bride: "",
-  groom: "",
-  date: "",
-  time: "",
-  venue: "",
-  address: "",
-  dressCode: "",
-  themeId: DEFAULT_THEME_ID,
-  story: [
-    { year: "2018", label: "First met", text: "A rainy Tuesday at a mutual friend's party. Marco spilled coffee on Isabella's book — she laughed instead of being mad." },
-    { year: "2020", label: "First date", text: "A picnic in the park that turned into a four-hour conversation about everything and nothing." },
-    { year: "2022", label: "Moved in", text: "A tiny apartment, two cats, and the realization that home isn't a place — it's a person." },
-    { year: "2024", label: "He proposed", text: "On the same rainy Tuesday six years later, in the same spot where coffee was spilled and a love story began." },
-  ],
-  photos: [],
-  program: [
-    { time: "3:30 PM", event: "Guest arrival & seating" },
-    { time: "4:00 PM", event: "Ceremony begins" },
-    { time: "4:45 PM", event: "Exchange of vows & rings" },
-    { time: "5:00 PM", event: "Cocktail hour" },
-    { time: "6:30 PM", event: "Reception dinner" },
-    { time: "8:00 PM", event: "First dance & program" },
-    { time: "10:00 PM", event: "Send-off & farewell" },
-  ],
-};
-
-// ── Shared Styles (neutral, don't depend on theme) ────────────────────────────
-const s = {
-  input: {
-    padding: "10px 14px", border: "1px solid #e0d0c0", borderRadius: 6,
-    fontSize: 14, width: "100%", fontFamily: "inherit", background: "#fffdf9",
-    color: "#3a1a0e", outline: "none", boxSizing: "border-box",
-  },
-  textarea: {
-    padding: "10px 14px", border: "1px solid #e0d0c0", borderRadius: 6,
-    fontSize: 14, width: "100%", fontFamily: "inherit", background: "#fffdf9",
-    color: "#3a1a0e", outline: "none", resize: "vertical", minHeight: 72,
-    boxSizing: "border-box",
-  },
-  label: {
-    fontSize: 11, fontWeight: 700, color: "#a07050", marginBottom: 5,
-    display: "block", textTransform: "uppercase", letterSpacing: 1.2,
-  },
-  card: {
-    background: "#fffdf7", border: "1px solid #ecddc8", borderRadius: 10,
-    padding: "18px 18px 14px", marginBottom: 10,
-  },
-  addBtn: {
-    padding: "9px 20px", background: "transparent", color: "#5c2d1e",
-    border: "1.5px dashed #c9956b", borderRadius: 8, fontSize: 12,
-    letterSpacing: 1, cursor: "pointer", fontFamily: "inherit", width: "100%",
-    marginTop: 4,
-  },
-  removeBtn: {
-    background: "none", border: "none", color: "#c9956b", cursor: "pointer",
-    fontSize: 20, lineHeight: 1, padding: "0 4px", flexShrink: 0,
-  },
-  saveBtn: {
-    padding: "14px 40px", background: "#5c2d1e", color: "#fff",
-    border: "none", borderRadius: 40, fontSize: 13, letterSpacing: 2,
-    textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit",
-    width: "100%", marginTop: 8,
-  },
-  section: {
-    background: "#fff8f2", border: "1px solid #ecddc8", borderRadius: 14,
-    padding: "24px 22px", marginBottom: 24,
-  },
-  moveBtn: {
-    background: "none", border: "1px solid #e0d0c0", borderRadius: 4,
-    cursor: "pointer", fontSize: 12, color: "#a07050", padding: "3px 8px",
-    lineHeight: 1.4, flexShrink: 0,
-  },
-};
-
-function SectionHeader({ title, subtitle }) {
   return (
-    <div style={{ marginBottom: 18 }}>
-      <h2 style={{ fontFamily: "'Georgia',serif", fontSize: 18, color: "#5c2d1e", fontStyle: "italic", margin: "0 0 4px" }}>{title}</h2>
-      {subtitle && <p style={{ fontSize: 12, color: "#b08060", margin: "0 0 12px" }}>{subtitle}</p>}
-      <div style={{ height: 1, background: "#ecddc8" }} />
-    </div>
-  );
-}
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(145deg, #fdf6ee 0%, #f5e6d3 50%, #ede0d4 100%)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px 16px",
+      fontFamily: "Georgia, 'Times New Roman', serif",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
+        .login-input {
+          width: 100%;
+          padding: 14px 16px;
+          border: 1.5px solid #e8d5b0;
+          border-radius: 12px;
+          background: rgba(255,255,255,0.8);
+          font-size: 15px;
+          font-family: Georgia, serif;
+          color: #5c2d1e;
+          outline: none;
+          box-sizing: border-box;
+          transition: border-color 0.2s, box-shadow 0.2s;
+          -webkit-appearance: none;
+        }
+        .login-input:focus {
+          border-color: #c9956b;
+          box-shadow: 0 0 0 3px rgba(201,149,107,0.15);
+        }
+        .login-input::placeholder { color: #c9a882; }
+        .login-btn {
+          width: 100%;
+          padding: 15px;
+          background: linear-gradient(135deg, #5c2d1e, #8a4a2e);
+          color: #fff;
+          border: none;
+          border-radius: 12px;
+          font-size: 14px;
+          font-family: Georgia, serif;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition: opacity 0.2s, transform 0.1s;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .login-btn:active { transform: scale(0.98); opacity: 0.9; }
+        .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .petal {
+          position: absolute;
+          width: 8px; height: 14px;
+          border-radius: 50% 50% 50% 0;
+          opacity: 0.4;
+          animation: floatPetal linear infinite;
+        }
+        @keyframes floatPetal {
+          0% { transform: translateY(-20px) rotate(0deg); opacity: 0; }
+          10% { opacity: 0.4; }
+          90% { opacity: 0.4; }
+          100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+      `}</style>
 
-// ── Theme Switcher ────────────────────────────────────────────────────────────
-function ThemeSwitcher({ currentThemeId, onChange }) {
-  return (
-    <div style={s.section}>
-      <SectionHeader
-        title="Invite Theme"
-        subtitle="Choose a colour palette. It applies instantly to the wedding invite page."
-      />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
-        {Object.values(THEMES).map((theme) => {
-          const isActive = theme.id === currentThemeId;
-          const [bg, primary, accent, light] = theme.preview;
-          return (
-            <button
-              key={theme.id}
-              onClick={() => onChange(theme.id)}
-              style={{
-                border: `2px solid ${isActive ? primary : "#e0d0c0"}`,
-                borderRadius: 12,
-                background: isActive ? "#fffdf7" : "#fff",
-                padding: "16px 18px",
-                cursor: "pointer",
-                textAlign: "left",
-                fontFamily: "inherit",
-                boxShadow: isActive ? `0 0 0 3px ${accent}40` : "none",
-                transition: "all 0.2s",
-                position: "relative",
-              }}
-            >
-              {/* Colour swatches */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-                {[bg, primary, accent, light].map((c, i) => (
-                  <div key={i} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: "1px solid rgba(0,0,0,0.08)", flexShrink: 0 }} />
-                ))}
-              </div>
+      {/* Floating petals */}
+      {[...Array(8)].map((_, i) => (
+        <div key={i} className="petal" style={{
+          background: ["#e76f51","#f4a261","#c9956b","#d4a574","#e8d5b0","#c8976a","#f4a261","#e76f51"][i],
+          left: `${10 + i * 11}%`,
+          animationDuration: `${5 + i * 0.8}s`,
+          animationDelay: `${i * 0.6}s`,
+        }} />
+      ))}
 
-              {/* Mini invite preview */}
-              <div style={{ background: bg, borderRadius: 8, padding: "10px 12px", marginBottom: 10, border: `1px solid ${light}` }}>
-                <div style={{ height: 6, width: "60%", background: accent, borderRadius: 3, marginBottom: 5, opacity: 0.6 }} />
-                <div style={{ height: 10, width: "80%", background: primary, borderRadius: 3, marginBottom: 4 }} />
-                <div style={{ height: 10, width: "70%", background: primary, borderRadius: 3, marginBottom: 6 }} />
-                <div style={{ height: 1, background: light, marginBottom: 6 }} />
-                <div style={{ height: 6, width: "45%", background: accent, borderRadius: 3, opacity: 0.5 }} />
-              </div>
+      <div style={{
+        width: "100%",
+        maxWidth: 400,
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(12px)",
+        borderRadius: 24,
+        padding: "40px 28px 36px",
+        boxShadow: "0 8px 40px rgba(92,45,30,0.12), 0 1px 0 rgba(255,255,255,0.8) inset",
+        border: "1px solid rgba(232,213,176,0.6)",
+        position: "relative",
+        zIndex: 1,
+      }}>
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, color: "#3a1a0e", fontWeight: isActive ? 700 : 400, fontFamily: "Georgia, serif", fontStyle: isActive ? "italic" : "normal" }}>
-                  {theme.name}
-                </span>
-                {isActive && (
-                  <span style={{ fontSize: 10, background: primary, color: "#fff", borderRadius: 20, padding: "3px 10px", letterSpacing: 1, textTransform: "uppercase" }}>
-                    Active
-                  </span>
-                )}
-              </div>
-            </button>
-          );
-        })}
+        {/* Top decoration */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 32, marginBottom: 10, lineHeight: 1 }}>♡</div>
+          <h1 style={{
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: 28,
+            fontWeight: 500,
+            color: "#5c2d1e",
+            fontStyle: "italic",
+            margin: "0 0 6px",
+            lineHeight: 1.2,
+          }}>
+            Wedding Admin
+          </h1>
+          <div style={{ width: 40, height: 1, background: "#e8d5b0", margin: "0 auto 8px" }} />
+          <p style={{
+            fontSize: 11,
+            letterSpacing: 3,
+            color: "#c9956b",
+            textTransform: "uppercase",
+            margin: 0,
+            fontFamily: "Georgia, serif",
+          }}>
+            Sign in to continue
+          </p>
+        </div>
+
+        {/* Error */}
+        {loginError && (
+          <div style={{
+            background: "#fff1f2",
+            border: "1px solid #fca5a5",
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}>
+            <span style={{ fontSize: 14 }}>⚠</span>
+            <span style={{ fontSize: 13, color: "#dc2626" }}>{loginError}</span>
+          </div>
+        )}
+
+        {/* Fields */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 11, letterSpacing: 2, color: "#a07850", textTransform: "uppercase", display: "block", marginBottom: 6 }}>
+              Username
+            </label>
+            <input
+              className="login-input"
+              placeholder="Enter your username"
+              value={loginData.username}
+              onChange={e => setLoginData({ ...loginData, username: e.target.value })}
+              autoComplete="username"
+              onKeyDown={e => e.key === "Enter" && handleLogin()}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, letterSpacing: 2, color: "#a07850", textTransform: "uppercase", display: "block", marginBottom: 6 }}>
+              Password
+            </label>
+            <div style={{ position: "relative" }}>
+              <input
+                className="login-input"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={loginData.password}
+                onChange={e => setLoginData({ ...loginData, password: e.target.value })}
+                autoComplete="current-password"
+                onKeyDown={e => e.key === "Enter" && handleLogin()}
+                style={{ paddingRight: 48 }}
+              />
+              <button
+                onClick={() => setShowPassword(p => !p)}
+                style={{
+                  position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
+                  background: "none", border: "none", cursor: "pointer", padding: 4,
+                  color: "#c9956b", fontSize: 16, lineHeight: 1,
+                }}
+              >
+                {showPassword ? "🙈" : "👁"}
+              </button>
+            </div>
+          </div>
+
+          <button
+            className="login-btn"
+            onClick={handleLogin}
+            disabled={loading || !loginData.username || !loginData.password}
+            style={{ marginTop: 6 }}
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
+        </div>
+
+        {/* Footer */}
+        <p style={{
+          textAlign: "center", fontSize: 11, color: "#c9a882",
+          marginTop: 24, marginBottom: 0, fontStyle: "italic",
+        }}>
+          For the couple's eyes only ♡
+        </p>
       </div>
-      <p style={{ fontSize: 11, color: "#b08060", marginTop: 14, fontStyle: "italic" }}>
-        💡 Click Save All Changes in the Settings tab after selecting a theme to apply it to the invite.
-      </p>
     </div>
   );
 }
 
-// ── RSVP Dashboard ────────────────────────────────────────────────────────────
-function RSVPDashboard() {
-  const [rsvps, setRsvps] = useState([]);
+// ── Main Dashboard ────────────────────────────────────────────────────────────
+export default function RSVPDashboard() {
+  const [admin, setAdmin] = useState(null);
+  const [loginData, setLoginData] = useState({ username: "", password: "" });
+  const [wedding, setWedding] = useState(null);
+  const [weddingForm, setWeddingForm] = useState({
+    bride: "", groom: "", date: "", time: "", venue: "", address: "", dress_code: "",
+  });
+  const [selectedTheme, setSelectedTheme] = useState("dusty-rose");
+  const [program, setProgram] = useState([]);
+  const [newProgram, setNewProgram] = useState({ time: "", event: "" });
+  const [milestones, setMilestones] = useState([]);
+  const [newMilestone, setNewMilestone] = useState({ date: "", description: "" });
+  const [rsvp, setRsvps] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
-  useEffect(() => {
-    const data = JSON.parse(localStorage.getItem("rsvps") || "[]");
-    setRsvps(data);
-  }, []);
+  // ── Admin Login ───────────────────────────────────────────────────────────
+  const handleLogin = async () => {
+    setLoading(true);
+    setLoginError("");
 
-  const attending = rsvps.filter(r => r.attend === true);
-  const declining = rsvps.filter(r => r.attend === false);
+    const { data: adminData, error: adminError } = await supabase
+      .from("adminprofile")
+      .select("*")
+      .eq("username", loginData.username)
+      .eq("password", loginData.password)
+      .single();
+
+    if (adminError || !adminData) {
+      setLoginError("Invalid username or password");
+      setLoading(false);
+      return;
+    }
+
+    setAdmin(adminData);
+    let weddingData = null;
+
+    if (adminData.wedding_id) {
+      const { data, error: weddingError } = await supabase
+        .from("weddings").select("*").eq("id", adminData.wedding_id).single();
+      if (weddingError) console.error("Failed to fetch wedding:", weddingError);
+      else weddingData = data;
+    }
+
+    if (!weddingData) {
+      const { data: newWedding, error: createErr } = await supabase
+        .from("weddings")
+        .insert([{ bride: "", groom: "", date: null, time: "", venue: "", address: "", dress_code: "", program: "[]", milestone: "[]", theme_id: "dusty-rose", created_at: new Date() }])
+        .select().single();
+      if (createErr) { console.error("Failed to create wedding:", createErr); setLoading(false); return; }
+      weddingData = newWedding;
+      await supabase.from("adminprofile").update({ wedding_id: weddingData.id }).eq("id", adminData.id);
+    }
+
+    setWedding(weddingData);
+    setWeddingForm({
+      bride: weddingData.bride || "", groom: weddingData.groom || "",
+      date: weddingData.date || "", time: weddingData.time || "",
+      venue: weddingData.venue || "", address: weddingData.address || "",
+      dress_code: weddingData.dress_code || "",
+    });
+    setSelectedTheme(weddingData.theme_id || "dusty-rose");
+
+    try { const p = weddingData.program ? JSON.parse(weddingData.program) : []; setProgram(Array.isArray(p) ? p : []); } catch { setProgram([]); }
+    try { const m = weddingData.milestone ? JSON.parse(weddingData.milestone) : []; setMilestones(Array.isArray(m) ? m : []); } catch { setMilestones([]); }
+
+    setLoading(false);
+    fetchRsvps(weddingData.id);
+  };
+
+  const fetchRsvps = async (weddingId) => {
+    setLoading(true);
+    const { data, error } = await supabase.from("rsvp").select("*").eq("wedding_id", weddingId).order("created_at", { ascending: true });
+    if (!error) setRsvps(data || []);
+    setLoading(false);
+  };
+
+  const updateWedding = async () => {
+    if (!wedding) return;
+    setLoading(true);
+    const { data, error } = await supabase.from("weddings").update({ ...weddingForm }).eq("id", wedding.id).select().single();
+    if (!error) { setWedding(data); alert("Wedding details updated!"); }
+    else console.error("Failed to update wedding:", error);
+    setLoading(false);
+  };
+
+  const saveTheme = async (themeId) => {
+    if (!wedding) return;
+    setSelectedTheme(themeId);
+    const { error } = await supabase.from("weddings").update({ theme_id: themeId }).eq("id", wedding.id);
+    if (error) console.error("Failed to save theme:", error);
+  };
+
+  const addProgramItem = () => {
+    if (!newProgram.time || !newProgram.event) return;
+    setProgram(prev => [...prev, { time: newProgram.time, event: newProgram.event }]);
+    setNewProgram({ time: "", event: "" });
+  };
+  const removeProgramItem = (index) => setProgram(prev => prev.filter((_, i) => i !== index));
+  const saveProgram = async () => {
+    if (!wedding) return;
+    setLoading(true);
+    const { error } = await supabase.from("weddings").update({ program: JSON.stringify(program) }).eq("id", wedding.id);
+    if (!error) alert("Program saved!"); else console.error("Failed to save program:", error);
+    setLoading(false);
+  };
+
+  const addMilestone = () => {
+    if (!newMilestone.date || !newMilestone.description) return;
+    setMilestones(prev => [...prev, { date: newMilestone.date, description: newMilestone.description }].sort((a, b) => new Date(a.date) - new Date(b.date)));
+    setNewMilestone({ date: "", description: "" });
+  };
+  const removeMilestone = (index) => setMilestones(prev => prev.filter((_, i) => i !== index));
+  const saveMilestones = async () => {
+    if (!wedding) return;
+    setLoading(true);
+    const { error } = await supabase.from("weddings").update({ milestone: JSON.stringify(milestones) }).eq("id", wedding.id);
+    if (!error) alert("Milestones saved!"); else console.error("Failed to save milestones:", error);
+    setLoading(false);
+  };
+
+  const deleteRsvp = async (id) => {
+    const { error } = await supabase.from("rsvp").delete().eq("id", id);
+    if (!error) fetchRsvps(wedding.id);
+    setDeleteConfirm(null);
+  };
+  const clearAll = async () => {
+    const { error } = await supabase.from("rsvp").delete().eq("wedding_id", wedding.id);
+    if (!error) fetchRsvps(wedding.id);
+  };
+
+  const filtered = useMemo(() => {
+    return rsvp
+      .filter(r => filter === "attending" ? r.attending : filter === "declining" ? !r.attending : true)
+      .filter(r => r.name?.toLowerCase().includes(search.toLowerCase()));
+  }, [rsvp, filter, search]);
+
+  const attending = rsvp.filter(r => r.attending);
+  const declining = rsvp.filter(r => !r.attending);
   const totalGuests = attending.reduce((sum, r) => sum + (r.guests || 1), 0);
-
-  const filtered = rsvps
-    .filter(r => {
-      if (filter === "attending") return r.attend === true;
-      if (filter === "declining") return r.attend === false;
-      return true;
-    })
-    .filter(r => r.name?.toLowerCase().includes(search.toLowerCase()));
-
-  const deleteRsvp = (idx) => {
-    const target = filtered[idx];
-    const realIdx = rsvps.indexOf(target);
-    const updated = rsvps.filter((_, i) => i !== realIdx);
-    setRsvps(updated);
-    localStorage.setItem("rsvps", JSON.stringify(updated));
-    setDeleteConfirm(null);
-  };
-
-  const clearAll = () => {
-    setRsvps([]);
-    localStorage.setItem("rsvps", JSON.stringify([]));
-    setDeleteConfirm(null);
-  };
 
   const exportCSV = () => {
     const header = ["Name", "Status", "Guests", "Note"];
-    const rows = rsvps.map(r => [
-      `"${r.name || ""}"`,
-      r.attend ? "Attending" : "Declining",
-      r.attend ? (r.guests || 1) : 0,
-      `"${(r.note || "").replace(/"/g, "'")}"`,
-    ]);
+    const rows = rsvp.map(r => [`"${r.name || ""}"`, r.attending ? "Attending" : "Declining", r.attending ? (r.guests || 1) : 0, `"${(r.note || "").replace(/"/g, "'")}"`]);
     const csv = [header, ...rows].map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "rsvps.csv"; a.click();
+    a.href = url; a.download = "rsvp.csv"; a.click();
     URL.revokeObjectURL(url);
   };
 
-  const statBox = (label, value, color, sub) => (
-    <div style={{ flex: 1, background: "#fffdf7", border: "1px solid #ecddc8", borderRadius: 12, padding: "16px 18px", textAlign: "center", minWidth: 100 }}>
-      <div style={{ fontFamily: "'Georgia',serif", fontSize: 36, color, fontStyle: "italic", lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 11, color: "#a07050", textTransform: "uppercase", letterSpacing: 1, marginTop: 4 }}>{label}</div>
-      {sub && <div style={{ fontSize: 11, color: "#c9956b", marginTop: 2 }}>{sub}</div>}
+  // ── Shared input/button styles ────────────────────────────────────────────
+  const inputStyle = { flex: 1, padding: "10px 12px", borderRadius: 8, border: "1px solid #e0d0c0", fontSize: 14, outline: "none", fontFamily: "inherit", color: "#3a2010", background: "#fff", boxSizing: "border-box" };
+  const btnPrimary = { padding: "10px 22px", background: "#5c2d1e", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", letterSpacing: 0.5, whiteSpace: "nowrap" };
+  const btnDanger = { padding: "4px 12px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" };
+  const sectionHead = { fontSize: 18, fontWeight: 600, color: "#3a2010", marginBottom: 6, fontFamily: "Georgia, serif" };
+  const sectionSub = { fontSize: 12, color: "#a07850", marginBottom: 18, marginTop: 0 };
+
+  // ── Show login if not authed ──────────────────────────────────────────────
+  if (!admin) {
+    return <LoginScreen loginData={loginData} setLoginData={setLoginData} handleLogin={handleLogin} loading={loading} loginError={loginError} />;
+  }
+
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#fdf6ee" }}>
+      <p style={{ fontFamily: "Georgia, serif", color: "#c9956b", fontStyle: "italic", fontSize: 15 }}>Loading...</p>
     </div>
   );
 
   return (
-    <div style={s.section}>
-      <SectionHeader title="RSVP Responses" subtitle="All guest responses submitted through the invite page." />
-      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-        {statBox("Total RSVPs", rsvps.length, "#5c2d1e")}
-        {statBox("Attending", attending.length, "#4a7c4e", `${totalGuests} seat${totalGuests !== 1 ? "s" : ""} total`)}
-        {statBox("Declining", declining.length, "#c0392b")}
+    <div style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 60px", fontFamily: "Georgia, 'Times New Roman', serif" }}>
+      <style>{`
+        .dash-input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #e0d0c0; font-size: 14px; outline: none; font-family: inherit; color: #3a2010; background: #fff; box-sizing: border-box; }
+        .dash-input:focus { border-color: #c9956b; box-shadow: 0 0 0 2px rgba(201,149,107,0.15); }
+        .section-divider { height: 1px; background: linear-gradient(to right, transparent, #e8d5b0, transparent); margin: 8px 0 32px; border: none; }
+      `}</style>
+
+      {/* ── Header ── */}
+      <div style={{ textAlign: "center", marginBottom: 36, paddingBottom: 24, borderBottom: "1px solid #f0e0cc" }}>
+        <div style={{ fontSize: 22, color: "#c9956b", marginBottom: 6 }}>♡</div>
+        <h1 style={{ fontFamily: "Georgia, serif", fontSize: 22, fontWeight: 500, color: "#5c2d1e", fontStyle: "italic", margin: "0 0 4px" }}>Wedding Dashboard</h1>
+        <p style={{ fontSize: 11, letterSpacing: 3, color: "#c9956b", textTransform: "uppercase", margin: 0 }}>Admin Panel</p>
       </div>
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <input style={{ ...s.input, flex: 1, minWidth: 160, fontSize: 13 }} placeholder="Search by name..." value={search} onChange={e => setSearch(e.target.value)} />
-        <div style={{ display: "flex", gap: 6 }}>
-          {["all", "attending", "declining"].map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              style={{ padding: "8px 14px", borderRadius: 20, border: "1px solid #e0d0c0", background: filter === f ? "#5c2d1e" : "#fffdf7", color: filter === f ? "#fff" : "#a07050", fontSize: 11, cursor: "pointer", textTransform: "capitalize", letterSpacing: 0.5, fontFamily: "inherit" }}>
-              {f}
-            </button>
-          ))}
+
+      {/* ── Wedding Details ── */}
+      <h2 style={sectionHead}>Wedding Details</h2>
+      <p style={sectionSub}>Basic information shown on the invitation.</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+        {[["Bride", "bride"], ["Groom", "groom"], ["Venue", "venue"], ["Address", "address"], ["Dress Code", "dress_code"]].map(([label, key]) => (
+          <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, letterSpacing: 1.5, color: "#a07850", textTransform: "uppercase" }}>{label}</label>
+            <input className="dash-input" value={weddingForm[key]} onChange={e => setWeddingForm({ ...weddingForm, [key]: e.target.value })} />
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 140 }}>
+            <label style={{ fontSize: 11, letterSpacing: 1.5, color: "#a07850", textTransform: "uppercase" }}>Date</label>
+            <input className="dash-input" type="date" value={weddingForm.date?.split("T")[0] || ""} onChange={e => setWeddingForm({ ...weddingForm, date: e.target.value })} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 120 }}>
+            <label style={{ fontSize: 11, letterSpacing: 1.5, color: "#a07850", textTransform: "uppercase" }}>Time</label>
+            <input className="dash-input" type="time" value={weddingForm.time || ""} onChange={e => setWeddingForm({ ...weddingForm, time: e.target.value })} />
+          </div>
         </div>
-        {rsvps.length > 0 && (
-          <button onClick={exportCSV} style={{ padding: "8px 14px", borderRadius: 20, border: "1px solid #c9956b", background: "transparent", color: "#c9956b", fontSize: 11, cursor: "pointer", letterSpacing: 0.5, fontFamily: "inherit" }}>
-            ↓ Export CSV
-          </button>
-        )}
       </div>
-      {rsvps.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "32px 0", color: "#c9956b", fontStyle: "italic", fontSize: 14 }}>No RSVPs yet. They'll appear here once guests respond.</div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "24px 0", color: "#c9956b", fontStyle: "italic", fontSize: 13 }}>No results match your search.</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {filtered.map((r, i) => (
-            <div key={i} style={{ background: "#fffdf7", border: `1px solid ${r.attend ? "#c8e6c9" : "#ffccbc"}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: r.attend ? "#4a7c4e" : "#c0392b", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, flexShrink: 0, fontFamily: "Georgia, serif" }}>
-                {(r.name || "?")[0].toUpperCase()}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontFamily: "'Georgia',serif", fontSize: 15, color: "#3a1a0e", fontWeight: 600 }}>{r.name}</span>
-                  <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 20, background: r.attend ? "#e8f5e9" : "#fbe9e7", color: r.attend ? "#4a7c4e" : "#c0392b", letterSpacing: 0.5, textTransform: "uppercase" }}>
-                    {r.attend ? "Attending" : "Declining"}
-                  </span>
-                  {r.attend && <span style={{ fontSize: 11, color: "#a07050" }}>👥 {r.guests || 1} guest{(r.guests || 1) !== 1 ? "s" : ""}</span>}
-                </div>
-                {r.note && <p style={{ fontSize: 12, color: "#a07050", margin: "6px 0 0", fontStyle: "italic", lineHeight: 1.5 }}>"{r.note}"</p>}
-              </div>
-              {deleteConfirm === i ? (
-                <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: "#c0392b" }}>Remove?</span>
-                  <button onClick={() => deleteRsvp(i)} style={{ padding: "4px 10px", background: "#c0392b", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Yes</button>
-                  <button onClick={() => setDeleteConfirm(null)} style={{ padding: "4px 10px", background: "none", border: "1px solid #e0d0c0", borderRadius: 6, fontSize: 11, cursor: "pointer", color: "#a07050" }}>No</button>
-                </div>
-              ) : (
-                <button onClick={() => setDeleteConfirm(i)} style={{ ...s.removeBtn, fontSize: 16, color: "#e0c8b0", flexShrink: 0 }}>×</button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      {rsvps.length > 0 && (
-        <div style={{ marginTop: 16, textAlign: "right" }}>
-          {deleteConfirm === "all" ? (
-            <span style={{ fontSize: 12 }}>
-              <span style={{ color: "#c0392b", marginRight: 8 }}>Clear all RSVPs?</span>
-              <button onClick={clearAll} style={{ padding: "4px 12px", background: "#c0392b", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, cursor: "pointer", marginRight: 6 }}>Yes, clear</button>
-              <button onClick={() => setDeleteConfirm(null)} style={{ padding: "4px 12px", background: "none", border: "1px solid #e0d0c0", borderRadius: 6, fontSize: 11, cursor: "pointer", color: "#a07050" }}>Cancel</button>
-            </span>
-          ) : (
-            <button onClick={() => setDeleteConfirm("all")} style={{ fontSize: 11, color: "#c9956b", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}>
-              Clear all RSVPs
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+      <button onClick={updateWedding} disabled={loading} style={{ ...btnPrimary, width: "100%", padding: "12px", marginBottom: 0, letterSpacing: 1 }}>
+        Save Wedding Details
+      </button>
+      <hr className="section-divider" />
 
-// ── Story Editor ──────────────────────────────────────────────────────────────
-function StoryEditor({ story, onChange }) {
-  const update = (i, field, val) => onChange(story.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
-  const add = () => onChange([...story, { year: "", label: "", text: "" }]);
-  const remove = (i) => onChange(story.filter((_, idx) => idx !== i));
-  const move = (i, dir) => {
-    const next = [...story]; const swap = i + dir;
-    if (swap < 0 || swap >= next.length) return;
-    [next[i], next[swap]] = [next[swap], next[i]]; onChange(next);
-  };
-  return (
-    <div style={s.section}>
-      <SectionHeader title="Our Story" subtitle="Add as many milestones as you like. Use ↑ ↓ to reorder." />
-      {story.map((item, i) => (
-        <div key={i} style={s.card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 11, color: "#c9956b", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Milestone {i + 1}</span>
-            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <button style={s.moveBtn} onClick={() => move(i, -1)}>↑</button>
-              <button style={s.moveBtn} onClick={() => move(i, 1)}>↓</button>
-              <button style={s.removeBtn} onClick={() => remove(i)}>×</button>
+      {/* ── Theme Picker ── */}
+      <h2 style={sectionHead}>Invitation Theme</h2>
+      <p style={sectionSub}>Choose a visual style. Saved instantly when selected.</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 0 }}>
+        {THEMES.map(t => {
+          const isSelected = selectedTheme === t.id;
+          return (
+            <div key={t.id} onClick={() => saveTheme(t.id)} style={{
+              border: `2px solid ${isSelected ? t.primary : "#e5e5e5"}`,
+              borderRadius: 12, overflow: "hidden", cursor: "pointer",
+              transition: "all 0.2s",
+              boxShadow: isSelected ? `0 0 0 3px ${t.accent}44` : "0 1px 3px rgba(0,0,0,0.06)",
+              transform: isSelected ? "scale(1.02)" : "scale(1)",
+            }}>
+              <div style={{ display: "flex", height: 44 }}>
+                {t.preview.map((color, i) => <div key={i} style={{ flex: 1, background: color }} />)}
+              </div>
+              <div style={{ padding: "10px 12px", background: t.bg, borderTop: `1px solid ${t.accentLight}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                  <span style={{ fontWeight: 600, fontSize: 12, color: t.primary }}>{t.label}</span>
+                  {isSelected && <span style={{ fontSize: 9, background: t.primary, color: t.bg, padding: "2px 7px", borderRadius: 20 }}>Active</span>}
+                </div>
+                <span style={{ fontSize: 10, color: t.accent }}>{t.description}</span>
+              </div>
             </div>
-          </div>
-          <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-            <div style={{ flex: "0 0 100px" }}>
-              <label style={s.label}>Year</label>
-              <input style={s.input} value={item.year} onChange={e => update(i, "year", e.target.value)} placeholder="2024" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Label</label>
-              <input style={s.input} value={item.label} onChange={e => update(i, "label", e.target.value)} placeholder="He proposed" />
-            </div>
-          </div>
-          <label style={s.label}>Story text</label>
-          <textarea style={s.textarea} value={item.text} onChange={e => update(i, "text", e.target.value)} placeholder="Tell the story of this moment..." />
-        </div>
-      ))}
-      <button style={s.addBtn} onClick={add}>+ Add Milestone</button>
-    </div>
-  );
-}
+          );
+        })}
+      </div>
+      <hr className="section-divider" />
 
-// ── Gallery Editor ────────────────────────────────────────────────────────────
-function GalleryEditor({ photos, onChange }) {
-  const fileInputRef = useRef(null);
-  const handleFiles = (e) => {
-    Array.from(e.target.files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => onChange(prev => [...prev, { url: ev.target.result, caption: file.name.replace(/\.[^.]+$/, "") }]);
-      reader.readAsDataURL(file);
-    });
-    e.target.value = "";
-  };
-  const updateCaption = (i, val) => onChange(photos.map((p, idx) => idx === i ? { ...p, caption: val } : p));
-  const remove = (i) => onChange(photos.filter((_, idx) => idx !== i));
-  const move = (i, dir) => {
-    const next = [...photos]; const swap = i + dir;
-    if (swap < 0 || swap >= next.length) return;
-    [next[i], next[swap]] = [next[swap], next[i]]; onChange(next);
-  };
-  return (
-    <div style={s.section}>
-      <SectionHeader title="Gallery" subtitle="Upload photos from your device. Edit captions and reorder as needed." />
-      <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleFiles} />
-      <button style={{ ...s.addBtn, marginBottom: 16 }} onClick={() => fileInputRef.current.click()}>📷 Upload Photos (select multiple)</button>
-      {photos.length === 0 && <p style={{ fontSize: 13, color: "#c9956b", textAlign: "center", padding: "12px 0", fontStyle: "italic" }}>No photos yet — click above to upload!</p>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: 12 }}>
-        {photos.map((p, i) => (
-          <div key={i} style={{ ...s.card, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ position: "relative" }}>
-              <img src={p.url} alt={p.caption} style={{ width: "100%", height: 105, objectFit: "cover", borderRadius: 6, display: "block" }} />
-              <button onClick={() => remove(i)} style={{ position: "absolute", top: 4, right: 4, background: "rgba(92,45,30,0.85)", border: "none", borderRadius: "50%", color: "#fff", width: 22, height: 22, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-            </div>
-            <input style={{ ...s.input, fontSize: 12, padding: "6px 10px" }} value={p.caption} onChange={e => updateCaption(i, e.target.value)} placeholder="Caption..." />
-            <div style={{ display: "flex", gap: 4 }}>
-              <button style={{ ...s.moveBtn, flex: 1 }} onClick={() => move(i, -1)}>← Left</button>
-              <button style={{ ...s.moveBtn, flex: 1 }} onClick={() => move(i, 1)}>Right →</button>
-            </div>
+      {/* ── Wedding Program ── */}
+      <h2 style={sectionHead}>Wedding Program</h2>
+      <p style={sectionSub}>Events shown on the Details page of the invitation.</p>
+      <div style={{ marginBottom: 12 }}>
+        {program.length === 0 && <p style={{ color: "#bbb", fontStyle: "italic", fontSize: 13, marginBottom: 12 }}>No program items yet.</p>}
+        {program.map((item, i) => (
+          <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, padding: "10px 12px", border: "1px solid #ede0cc", borderRadius: 8, background: "#fffaf5" }}>
+            <span style={{ minWidth: 70, fontWeight: 600, fontSize: 13, color: "#c9956b" }}>{item.time}</span>
+            <span style={{ flex: 1, fontSize: 14, color: "#3a2010" }}>{item.event}</span>
+            <button onClick={() => removeProgramItem(i)} style={btnDanger}>Remove</button>
           </div>
         ))}
       </div>
-    </div>
-  );
-}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <input type="time" value={newProgram.time} onChange={e => setNewProgram({ ...newProgram, time: e.target.value })} style={{ ...inputStyle, flex: "0 0 130px", minWidth: 0 }} />
+        <input value={newProgram.event} onChange={e => setNewProgram({ ...newProgram, event: e.target.value })} placeholder="e.g. Ceremony, First Dance..." style={{ ...inputStyle, minWidth: 0 }} onKeyDown={e => e.key === "Enter" && addProgramItem()} />
+        <button onClick={addProgramItem} style={btnPrimary}>Add</button>
+      </div>
+      <button onClick={saveProgram} disabled={loading} style={{ ...btnPrimary, width: "100%", padding: "12px", letterSpacing: 1 }}>Save Program</button>
+      <hr className="section-divider" />
 
-// ── Program Editor ────────────────────────────────────────────────────────────
-function ProgramEditor({ program, onChange }) {
-  const update = (i, field, val) => onChange(program.map((p, idx) => idx === i ? { ...p, [field]: val } : p));
-  const add = () => onChange([...program, { time: "", event: "" }]);
-  const remove = (i) => onChange(program.filter((_, idx) => idx !== i));
-  const move = (i, dir) => {
-    const next = [...program]; const swap = i + dir;
-    if (swap < 0 || swap >= next.length) return;
-    [next[i], next[swap]] = [next[swap], next[i]]; onChange(next);
-  };
-  return (
-    <div style={s.section}>
-      <SectionHeader title="Program" subtitle="Add, remove, or reorder schedule items." />
-      {program.map((item, i) => (
-        <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-          <input style={{ ...s.input, flex: "0 0 100px", fontSize: 13 }} value={item.time} onChange={e => update(i, "time", e.target.value)} placeholder="4:00 PM" />
-          <input style={{ ...s.input, flex: 1, fontSize: 13 }} value={item.event} onChange={e => update(i, "event", e.target.value)} placeholder="Ceremony begins" />
-          <button style={s.moveBtn} onClick={() => move(i, -1)}>↑</button>
-          <button style={s.moveBtn} onClick={() => move(i, 1)}>↓</button>
-          <button style={s.removeBtn} onClick={() => remove(i)}>×</button>
-        </div>
-      ))}
-      <button style={s.addBtn} onClick={add}>+ Add Program Item</button>
-    </div>
-  );
-}
+      {/* ── Milestones ── */}
+      <h2 style={sectionHead}>Our Story / Milestones</h2>
+      <p style={sectionSub}>Timeline shown on the Story page of the invitation.</p>
+      <div style={{ marginBottom: 12 }}>
+        {milestones.length === 0 && <p style={{ color: "#bbb", fontStyle: "italic", fontSize: 13, marginBottom: 12 }}>No milestones yet.</p>}
+        {milestones.map((item, i) => (
+          <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8, padding: "10px 12px", border: "1px solid #ede0cc", borderRadius: 8, background: "#fffaf5" }}>
+            <span style={{ minWidth: 120, fontWeight: 600, fontSize: 12, color: "#c9956b", whiteSpace: "nowrap", paddingTop: 1 }}>
+              {new Date(item.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+            </span>
+            <span style={{ flex: 1, fontSize: 13, color: "#3a2010", lineHeight: 1.5 }}>{item.description}</span>
+            <button onClick={() => removeMilestone(i)} style={btnDanger}>Remove</button>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <input type="date" value={newMilestone.date} onChange={e => setNewMilestone({ ...newMilestone, date: e.target.value })} style={{ ...inputStyle, flex: "0 0 150px", minWidth: 0 }} />
+        <input value={newMilestone.description} onChange={e => setNewMilestone({ ...newMilestone, description: e.target.value })} placeholder="e.g. We met at a coffee shop..." style={{ ...inputStyle, minWidth: 0 }} onKeyDown={e => e.key === "Enter" && addMilestone()} />
+        <button onClick={addMilestone} style={btnPrimary}>Add</button>
+      </div>
+      <button onClick={saveMilestones} disabled={loading} style={{ ...btnPrimary, width: "100%", padding: "12px", letterSpacing: 1 }}>Save Milestones</button>
+      <hr className="section-divider" />
 
-// ── Tab Nav ───────────────────────────────────────────────────────────────────
-function TabNav({ active, onChange }) {
-  const tabs = [
-    { id: "rsvp", label: "💌 RSVPs" },
-    { id: "theme", label: "🎨 Theme" },
-    { id: "settings", label: "⚙️ Settings" },
-  ];
-  return (
-    <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
-      {tabs.map(t => (
-        <button key={t.id} onClick={() => onChange(t.id)}
-          style={{ padding: "10px 22px", borderRadius: 30, border: "1.5px solid", borderColor: active === t.id ? "#5c2d1e" : "#e0d0c0", background: active === t.id ? "#5c2d1e" : "#fffdf7", color: active === t.id ? "#fff" : "#a07050", fontSize: 13, cursor: "pointer", fontFamily: "Georgia, serif", fontStyle: active === t.id ? "italic" : "normal", transition: "all 0.2s" }}>
-          {t.label}
+      {/* ── RSVP Responses ── */}
+      <h2 style={sectionHead}>RSVP Responses</h2>
+
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
+        {[
+          { label: "Total", value: rsvp.length, color: "#5c2d1e", bg: "#fdf6ee" },
+          { label: "Attending", value: attending.length, color: "#16a34a", bg: "#f0fdf4" },
+          { label: "Declining", value: declining.length, color: "#dc2626", bg: "#fff1f2" },
+        ].map(s => (
+          <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.color}22`, borderRadius: 12, padding: "14px 10px", textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: s.color, opacity: 0.7, marginTop: 4, letterSpacing: 1, textTransform: "uppercase" }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: 12, color: "#a07850", textAlign: "center", marginBottom: 20, marginTop: -10 }}>
+        {totalGuests} total seats reserved
+      </p>
+
+      {/* Search + filters */}
+      <input placeholder="Search by name..." value={search} onChange={e => setSearch(e.target.value)}
+        style={{ ...inputStyle, width: "100%", marginBottom: 10, boxSizing: "border-box" }} />
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {["all", "attending", "declining"].map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: "8px 16px", borderRadius: 8, border: `1px solid ${filter === f ? "#5c2d1e" : "#ddd"}`,
+            fontSize: 12, cursor: "pointer", flex: 1,
+            background: filter === f ? "#5c2d1e" : "#fff",
+            color: filter === f ? "#fff" : "#666",
+            textTransform: "capitalize", letterSpacing: 0.5,
+          }}>{f}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        {rsvp.length > 0 && (
+          <button onClick={exportCSV} style={{ flex: 1, padding: "9px", borderRadius: 8, border: "1px solid #ddd", fontSize: 12, cursor: "pointer", background: "#fff", color: "#5c2d1e" }}>
+            Export CSV
+          </button>
+        )}
+        <button onClick={clearAll} style={{ flex: 1, padding: "9px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fee2e2", color: "#dc2626", fontSize: 12, cursor: "pointer" }}>
+          Clear All
         </button>
-      ))}
-    </div>
-  );
-}
-
-// ── Main ──────────────────────────────────────────────────────────────────────
-export default function AdminPage() {
-  const [tab, setTab] = useState("rsvp");
-  const [wedding, setWedding] = useState(DEFAULT_STATE);
-  const [savedMsg, setSavedMsg] = useState(false);
-
-  useEffect(() => {
-    const data = JSON.parse(localStorage.getItem("wedding_config") || "{}");
-    setWedding(prev => ({
-      ...prev, ...data,
-      themeId: data.themeId || DEFAULT_THEME_ID,
-      story: data.story?.length ? data.story : prev.story,
-      photos: data.photos?.length ? data.photos : prev.photos,
-      program: data.program?.length ? data.program : prev.program,
-    }));
-  }, []);
-
-  const handleChange = (e) => setWedding(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  const setTheme = (themeId) => setWedding(prev => ({ ...prev, themeId }));
-  const setStory = (story) => setWedding(prev => ({ ...prev, story }));
-  const setPhotos = (updater) => setWedding(prev => ({ ...prev, photos: typeof updater === "function" ? updater(prev.photos) : updater }));
-  const setProgram = (program) => setWedding(prev => ({ ...prev, program }));
-
-  const handleSave = () => {
-    localStorage.setItem("wedding_config", JSON.stringify(wedding));
-    setSavedMsg(true);
-    setTimeout(() => setSavedMsg(false), 3000);
-  };
-
-  return (
-    <div style={{ padding: "40px 24px", maxWidth: 700, margin: "0 auto", fontFamily: "Georgia, serif", background: "#fdf6ee", minHeight: "100vh" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet" />
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 38, color: "#5c2d1e", fontStyle: "italic", margin: "0 0 6px" }}>Admin Dashboard</h1>
-        <p style={{ color: "#b08060", fontSize: 13, margin: 0 }}>Manage your wedding invite and track guest responses.</p>
       </div>
 
-      <TabNav active={tab} onChange={setTab} />
-
-      {tab === "rsvp" && <RSVPDashboard />}
-
-      {tab === "theme" && (
-        <>
-          <ThemeSwitcher currentThemeId={wedding.themeId} onChange={setTheme} />
-          <button onClick={handleSave} style={{ ...s.saveBtn, background: savedMsg ? "#4a7c4e" : "#5c2d1e" }}>
-            {savedMsg ? "✓ Theme Saved!" : "Save Theme"}
-          </button>
-          {savedMsg && <p style={{ textAlign: "center", color: "#5c2d1e", fontSize: 13, marginTop: 10, fontStyle: "italic" }}>Refresh the invite page to see the new theme.</p>}
-        </>
-      )}
-
-      {tab === "settings" && (
-        <>
-          <div style={s.section}>
-            <SectionHeader title="Basic Details" />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div><label style={s.label}>Bride's Name</label><input style={s.input} name="bride" value={wedding.bride} onChange={handleChange} placeholder="Isabella Santos" /></div>
-              <div><label style={s.label}>Groom's Name</label><input style={s.input} name="groom" value={wedding.groom} onChange={handleChange} placeholder="Marco Reyes" /></div>
-              <div><label style={s.label}>Wedding Date</label><input style={s.input} name="date" value={wedding.date} onChange={handleChange} type="date" /></div>
-              <div><label style={s.label}>Time (24h format)</label><input style={s.input} name="time" value={wedding.time} onChange={handleChange} placeholder="16:00" /></div>
-              <div style={{ gridColumn: "1 / -1" }}><label style={s.label}>Venue Name</label><input style={s.input} name="venue" value={wedding.venue} onChange={handleChange} placeholder="The Grand Rose Garden" /></div>
-              <div style={{ gridColumn: "1 / -1" }}><label style={s.label}>Address</label><input style={s.input} name="address" value={wedding.address} onChange={handleChange} placeholder="123 Blossom Lane, Tagaytay City, Cavite" /></div>
-              <div style={{ gridColumn: "1 / -1" }}><label style={s.label}>Dress Code</label><input style={s.input} name="dressCode" value={wedding.dressCode} onChange={handleChange} placeholder="Formal Attire — Dusty Rose & Sage" /></div>
+      {/* RSVP list */}
+      {filtered.length === 0 ? (
+        <p style={{ color: "#bbb", fontStyle: "italic", textAlign: "center", fontSize: 13 }}>No RSVPs found.</p>
+      ) : (
+        filtered.map(r => (
+          <div key={r.id} style={{ border: `1px solid ${r.attending ? "#86efac" : "#fca5a5"}`, borderRadius: 12, padding: "12px 14px", marginBottom: 10, background: r.attending ? "#f0fdf4" : "#fff1f2" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <strong style={{ fontSize: 14, color: "#3a2010" }}>{r.name}</strong>
+                <span style={{ marginLeft: 8, fontSize: 12, color: r.attending ? "#16a34a" : "#dc2626" }}>
+                  {r.attending ? "✓ Attending" : "✗ Declining"}
+                </span>
+              </div>
+              {deleteConfirm === r.id ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => deleteRsvp(r.id)} style={{ padding: "4px 10px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>Delete</button>
+                  <button onClick={() => setDeleteConfirm(null)} style={{ padding: "4px 10px", border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", fontSize: 12, background: "#fff" }}>Cancel</button>
+                </div>
+              ) : (
+                <button onClick={() => setDeleteConfirm(r.id)} style={btnDanger}>Delete</button>
+              )}
             </div>
+            {r.attending && <div style={{ fontSize: 12, color: "#555", marginTop: 5 }}>Guests: {r.guests || 1}</div>}
+            {r.note && <div style={{ fontSize: 12, color: "#777", marginTop: 4, fontStyle: "italic" }}>"{r.note}"</div>}
           </div>
-          <StoryEditor story={wedding.story} onChange={setStory} />
-          <GalleryEditor photos={wedding.photos} onChange={setPhotos} />
-          <ProgramEditor program={wedding.program} onChange={setProgram} />
-          <button onClick={handleSave} style={{ ...s.saveBtn, background: savedMsg ? "#4a7c4e" : "#5c2d1e" }}>
-            {savedMsg ? "✓ Saved Successfully!" : "Save All Changes"}
-          </button>
-          {savedMsg && <p style={{ textAlign: "center", color: "#5c2d1e", fontSize: 13, marginTop: 10, fontStyle: "italic" }}>Refresh the invite page to see your updates.</p>}
-        </>
+        ))
       )}
     </div>
   );

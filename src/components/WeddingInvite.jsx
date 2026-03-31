@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "../supabaseclient";
 
-// ── Themes (must match AdminPage.jsx) ─────────────────────────────────────────
+// ── Themes ────────────────────────────────────────────────────────────────────
 const THEMES = {
   "dusty-rose": {
     bg: "#fdf6ee", cardBg: "#fffdf7", primary: "#5c2d1e", accent: "#c9956b",
@@ -27,85 +28,71 @@ const THEMES = {
     envelopeBody: "#e8a0b0", envelopeSide: "#d88898", envelopeBottom: "#f0b8c8",
     envelopeFlap: "#c07090", petalColors: ["#e8a0b0", "#f5c0d0", "#c07090", "#f0d0d8"],
   },
+
+  // ── NEW ──────────────────────────────────────────────────────────────────
+  "lavender-mist": {
+    bg: "#f5f3fb", cardBg: "#faf8ff", primary: "#4a2d7a", accent: "#9b7ec8",
+    accentLight: "#d8cef0", text: "#7a6a9a", textDark: "#4a2d7a",
+    envelopeBody: "#9b7ec8", envelopeSide: "#8a6ab8", envelopeBottom: "#b09ed8",
+    envelopeFlap: "#6a4aa0", petalColors: ["#9b7ec8", "#c0a8e8", "#7a5ab0", "#d8cef0"],
+  },
+  "obsidian-pearl": {
+    bg: "#f8f6f2", cardBg: "#fffefb", primary: "#1a1a1a", accent: "#8a7a6a",
+    accentLight: "#d8d0c8", text: "#6a6058", textDark: "#1a1a1a",
+    envelopeBody: "#8a7a6a", envelopeSide: "#7a6a5a", envelopeBottom: "#a09080",
+    envelopeFlap: "#3a3530", petalColors: ["#8a7a6a", "#b0a090", "#5a5048", "#d8d0c8"],
+  },
 };
+
 
 const DEFAULT_THEME = THEMES["dusty-rose"];
 
-// ── Defaults ──────────────────────────────────────────────────────────────────
+// ── Fallback defaults ─────────────────────────────────────────────────────────
 const DEFAULTS = {
-  bride: "Isabella Santos",
-  groom: "Marco Reyes",
-  date: new Date("2026-03-30T16:00:00"),
-  dateLabel: "March 30, 2026",
-  day: "Saturday",
-  time: "Four o'clock in the afternoon",
-  venue: "The Grand Rose Garden",
-  address: "123 Blossom Lane, Tagaytay City, Cavite",
-  mapsUrl: "https://maps.google.com/?q=Tagaytay+City+Cavite+Philippines",
-  dressCode: "Formal Attire — Dusty Rose & Sage",
-  program: [
-    { time: "3:30 PM", event: "Guest arrival & seating" },
-    { time: "4:00 PM", event: "Ceremony begins" },
-    { time: "4:45 PM", event: "Exchange of vows & rings" },
-    { time: "5:00 PM", event: "Cocktail hour" },
-    { time: "6:30 PM", event: "Reception dinner" },
-    { time: "8:00 PM", event: "First dance & program" },
-    { time: "10:00 PM", event: "Send-off & farewell" },
-  ],
-  story: [
-    { year: "2018", label: "First met", text: "A rainy Tuesday at a mutual friend's party. Marco spilled coffee on Isabella's book — she laughed instead of being mad." },
-    { year: "2020", label: "First date", text: "A picnic in the park that turned into a four-hour conversation about everything and nothing." },
-    { year: "2022", label: "Moved in", text: "A tiny apartment, two cats, and the realization that home isn't a place — it's a person." },
-    { year: "2024", label: "He proposed", text: "On the same rainy Tuesday six years later, in the same spot where coffee was spilled and a love story began." },
-  ],
-  photos: [
-    { url: "https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&q=80", caption: "Our first trip together" },
-    { url: "https://images.unsplash.com/photo-1519741497674-611481863552?w=400&q=80", caption: "The proposal" },
-    { url: "https://images.unsplash.com/photo-1537633552985-df8429e8048b?w=400&q=80", caption: "Pre-wedding shoot" },
-    { url: "https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=400&q=80", caption: "Just us" },
-    { url: "https://images.unsplash.com/photo-1529636798458-92182e662485?w=400&q=80", caption: "Our families" },
-    { url: "https://images.unsplash.com/photo-1591604021695-0c69b7c05981?w=400&q=80", caption: "Forever starts here" },
-  ],
+  bride: "The Bride",
+  groom: "The Groom",
+  dateLabel: "",
+  day: "",
+  time: "",
+  venue: "",
+  address: "",
+  dressCode: "",
+  mapsUrl: "https://maps.google.com",
+  story: [],
+  photos: [],
+  program: [],
 };
 
-function buildWedding() {
-  const saved = JSON.parse(localStorage.getItem("wedding_config") || "{}");
-  const theme = THEMES[saved.themeId] || DEFAULT_THEME;
-
-  let parsedDate = DEFAULTS.date;
-  let dateLabel = DEFAULTS.dateLabel;
-  let day = DEFAULTS.day;
-
-  if (saved.date) {
-    const timeStr = saved.time || "16:00";
-    parsedDate = new Date(`${saved.date}T${timeStr}:00`);
-    dateLabel = parsedDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    day = parsedDate.toLocaleDateString("en-US", { weekday: "long" });
-  }
-
-  return {
-    ...DEFAULTS,
-    bride: saved.bride || DEFAULTS.bride,
-    groom: saved.groom || DEFAULTS.groom,
-    date: parsedDate,
-    dateLabel, day,
-    time: saved.time || DEFAULTS.time,
-    venue: saved.venue || DEFAULTS.venue,
-    address: saved.address || DEFAULTS.address,
-    dressCode: saved.dressCode || DEFAULTS.dressCode,
-    story: saved.story?.length ? saved.story : DEFAULTS.story,
-    photos: saved.photos?.length ? saved.photos : DEFAULTS.photos,
-    program: saved.program?.length ? saved.program : DEFAULTS.program,
-    theme,
-  };
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatDateLabel(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+function formatDay(dateStr) {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleDateString("en-US", { weekday: "long" });
+}
+function formatTime(timeStr) {
+  if (!timeStr) return "";
+  const [h, m] = timeStr.split(":");
+  const hour = parseInt(h);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${m} ${suffix}`;
+}
+function buildMapsUrl(address) {
+  if (!address) return "https://maps.google.com";
+  return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
 }
 
-// ── Hooks ─────────────────────────────────────────────────────────────────────
+// ── Countdown Hook ────────────────────────────────────────────────────────────
 function useCountdown(targetDate) {
-  const [time, setTime] = useState({});
+  const [time, setTime] = useState({ d: 0, h: 0, m: 0, s: 0 });
   useEffect(() => {
+    if (!targetDate) return;
     const calc = () => {
-      const diff = targetDate - new Date();
+      const diff = new Date(targetDate) - new Date();
       if (diff <= 0) return setTime({ d: 0, h: 0, m: 0, s: 0 });
       setTime({
         d: Math.floor(diff / 86400000),
@@ -121,6 +108,7 @@ function useCountdown(targetDate) {
   return time;
 }
 
+// ── Animation ─────────────────────────────────────────────────────────────────
 const pageVariants = {
   initial: { opacity: 0, y: 40 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
@@ -136,6 +124,21 @@ const Petal = ({ style, color }) => (
     animation: `fall ${style.dur}s ease ${style.delay}s infinite`,
   }} />
 );
+
+// ── Loading Screen ────────────────────────────────────────────────────────────
+function LoadingScreen() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#fdf6ee" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 32, marginBottom: 16, animation: "pulse 1.5s ease infinite" }}>♡</div>
+        <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, color: "#c9956b", fontStyle: "italic", letterSpacing: 2 }}>
+          Loading your invitation...
+        </p>
+      </div>
+      <style>{`@keyframes pulse{0%,100%{opacity:0.4;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}`}</style>
+    </div>
+  );
+}
 
 // ── Pages ─────────────────────────────────────────────────────────────────────
 
@@ -205,7 +208,9 @@ function CoverPage({ onNext, wedding }) {
         <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(22px,5vw,40px)", color: theme.accent, marginBottom: 8 }}>&amp;</p>
         <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(36px,8vw,72px)", color: theme.primary, fontStyle: "italic", lineHeight: 1.1, marginBottom: 32 }}>{wedding.groom}</h1>
         <div style={{ width: 60, height: 1, background: theme.accentLight, margin: "0 auto 24px" }} />
-        <p style={{ fontSize: 12, letterSpacing: 3, color: theme.text, textTransform: "uppercase", marginBottom: 40 }}>{wedding.dateLabel} · {wedding.day}</p>
+        <p style={{ fontSize: 12, letterSpacing: 3, color: theme.text, textTransform: "uppercase", marginBottom: 40 }}>
+          {wedding.dateLabel} {wedding.day ? `· ${wedding.day}` : ""}
+        </p>
         <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} onClick={onNext}
           style={{ padding: "14px 40px", background: theme.primary, color: theme.cardBg, border: "none", borderRadius: 40, fontSize: 12, letterSpacing: 3, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>
           Open Invitation
@@ -217,10 +222,10 @@ function CoverPage({ onNext, wedding }) {
 
 function DateTimePage({ onNext, wedding }) {
   const { theme } = wedding;
-  const { d, h, m, s } = useCountdown(wedding.date);
+  const { d, h, m, s } = useCountdown(wedding.rawDate);
   const CountBox = ({ val, label }) => (
     <div style={{ textAlign: "center", minWidth: 64 }}>
-      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(32px,8vw,56px)", color: theme.primary, fontWeight: 500, lineHeight: 1 }}>{String(val).padStart(2, "0")}</div>
+      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(32px,8vw,56px)", color: theme.primary, fontWeight: 500, lineHeight: 1 }}>{String(val ?? 0).padStart(2, "0")}</div>
       <div style={{ fontSize: 10, letterSpacing: 3, color: theme.accent, textTransform: "uppercase", marginTop: 4 }}>{label}</div>
     </div>
   );
@@ -260,8 +265,11 @@ function VenuePage({ onNext, wedding }) {
       <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(28px,6vw,48px)", color: theme.primary, fontStyle: "italic", marginBottom: 8 }}>{wedding.venue}</h2>
       <p style={{ fontSize: 14, color: theme.text, lineHeight: 1.8, marginBottom: 32 }}>{wedding.address}</p>
       <div style={{ width: "min(480px,90vw)", borderRadius: 12, overflow: "hidden", border: `0.5px solid ${theme.accentLight}`, marginBottom: 24, height: 220 }}>
-        <iframe title="venue map" width="100%" height="220" style={{ border: 0, display: "block" }} loading="lazy"
-          src="https://www.google.com/maps/embed/v1/place?key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&q=Tagaytay+City,Cavite,Philippines" />
+        <iframe
+          title="venue map" width="100%" height="220"
+          style={{ border: 0, display: "block" }} loading="lazy"
+          src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&q=${encodeURIComponent(wedding.address || "Philippines")}`}
+        />
       </div>
       <motion.a href={wedding.mapsUrl} target="_blank" rel="noreferrer" whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
         style={{ display: "inline-block", padding: "12px 32px", border: `1px solid ${theme.primary}`, color: theme.primary, borderRadius: 40, fontSize: 12, letterSpacing: 3, textTransform: "uppercase", textDecoration: "none", marginBottom: 40 }}>
@@ -277,24 +285,40 @@ function VenuePage({ onNext, wedding }) {
 
 function StoryPage({ onNext, wedding }) {
   const { theme } = wedding;
+  if (!wedding.story?.length) {
+    return (
+      <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
+        style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: 32, textAlign: "center", background: theme.bg }}>
+        <p style={{ color: theme.text, fontStyle: "italic", marginBottom: 32 }}>No story milestones added yet.</p>
+        <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} onClick={onNext}
+          style={{ padding: "14px 40px", background: theme.primary, color: theme.cardBg, border: "none", borderRadius: 40, fontSize: 12, letterSpacing: 3, textTransform: "uppercase", cursor: "pointer" }}>
+          Continue
+        </motion.button>
+      </motion.div>
+    );
+  }
   return (
     <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
       style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 24px", maxWidth: 600, margin: "0 auto", textAlign: "center", background: theme.bg }}>
       <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 12, letterSpacing: 5, color: theme.accent, textTransform: "uppercase", marginBottom: 12 }}>our story</p>
       <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(28px,6vw,44px)", color: theme.primary, fontStyle: "italic", marginBottom: 40 }}>How it all began</h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 0, width: "100%", marginBottom: 40 }}>
+      <div style={{ display: "flex", flexDirection: "column", width: "100%", marginBottom: 40 }}>
         {wedding.story.map((item, i) => (
           <motion.div key={i} initial={{ opacity: 0, x: i % 2 === 0 ? -20 : 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }}
             style={{ display: "flex", gap: 20, alignItems: "flex-start", marginBottom: 32, textAlign: "left" }}>
-            <div style={{ minWidth: 56, textAlign: "right" }}>
-              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: theme.accent, fontStyle: "italic" }}>{item.year}</div>
+            {/* ── Date column ── */}
+            <div style={{ minWidth: 120, textAlign: "right" }}>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 13, color: theme.accent, fontStyle: "italic", lineHeight: 1.4 }}>
+                {new Date(item.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+              </div>
             </div>
+            {/* ── Timeline line + dot ── */}
             <div style={{ width: 1, background: theme.accentLight, minHeight: 60, marginTop: 6, flexShrink: 0, position: "relative" }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: theme.accent, position: "absolute", left: -3.5, top: 6 }} />
             </div>
+            {/* ── Description ── */}
             <div style={{ paddingTop: 4 }}>
-              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, color: theme.primary, fontWeight: 500, marginBottom: 4 }}>{item.label}</div>
-              <div style={{ fontSize: 13, color: theme.text, lineHeight: 1.7 }}>{item.text}</div>
+              <div style={{ fontSize: 13, color: theme.text, lineHeight: 1.7 }}>{item.description}</div>
             </div>
           </motion.div>
         ))}
@@ -315,6 +339,18 @@ function GalleryPage({ onNext, wedding }) {
     if (!ref.current) return;
     setActive(Math.round(ref.current.scrollLeft / ref.current.offsetWidth));
   };
+  if (!wedding.photos?.length) {
+    return (
+      <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
+        style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: 32, textAlign: "center", background: theme.bg }}>
+        <p style={{ color: theme.text, fontStyle: "italic", marginBottom: 32 }}>No gallery photos added yet.</p>
+        <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} onClick={onNext}
+          style={{ padding: "14px 40px", background: theme.primary, color: theme.cardBg, border: "none", borderRadius: 40, fontSize: 12, letterSpacing: 3, textTransform: "uppercase", cursor: "pointer" }}>
+          Continue
+        </motion.button>
+      </motion.div>
+    );
+  }
   return (
     <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
       style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 0", textAlign: "center", background: theme.bg }}>
@@ -352,19 +388,40 @@ function DetailsPage({ onNext, wedding }) {
       style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 24px", maxWidth: 560, margin: "0 auto", textAlign: "center", background: theme.bg }}>
       <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 12, letterSpacing: 5, color: theme.accent, textTransform: "uppercase", marginBottom: 12 }}>the details</p>
       <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(28px,6vw,44px)", color: theme.primary, fontStyle: "italic", marginBottom: 32 }}>Program &amp; Dress Code</h2>
-      <div style={{ background: theme.cardBg, border: `0.5px solid ${theme.accentLight}`, borderRadius: 12, padding: "20px 24px", width: "100%", marginBottom: 24, textAlign: "left" }}>
-        <p style={{ fontSize: 10, letterSpacing: 3, color: theme.accent, textTransform: "uppercase", marginBottom: 12 }}>👗 Dress code</p>
-        <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: theme.primary, fontStyle: "italic", margin: 0 }}>{wedding.dressCode}</p>
-      </div>
-      <div style={{ background: theme.cardBg, border: `0.5px solid ${theme.accentLight}`, borderRadius: 12, padding: "20px 24px", width: "100%", marginBottom: 40 }}>
-        <p style={{ fontSize: 10, letterSpacing: 3, color: theme.accent, textTransform: "uppercase", marginBottom: 16 }}>⛪ Program</p>
-        {wedding.program.map((item, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < wedding.program.length - 1 ? `0.5px solid ${theme.accentLight}` : "none" }}>
-            <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 14, color: theme.accent, minWidth: 64 }}>{item.time}</span>
-            <span style={{ fontSize: 13, color: theme.primary, textAlign: "right" }}>{item.event}</span>
-          </div>
-        ))}
-      </div>
+
+      {wedding.dressCode && (
+        <div style={{ background: theme.cardBg, border: `0.5px solid ${theme.accentLight}`, borderRadius: 12, padding: "20px 24px", width: "100%", marginBottom: 24, textAlign: "left" }}>
+          <p style={{ fontSize: 10, letterSpacing: 3, color: theme.accent, textTransform: "uppercase", marginBottom: 12 }}>👗 Dress Code</p>
+          <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: theme.primary, fontStyle: "italic", margin: 0 }}>{wedding.dressCode}</p>
+        </div>
+      )}
+
+      {wedding.program?.length > 0 && (
+        <div style={{ background: theme.cardBg, border: `0.5px solid ${theme.accentLight}`, borderRadius: 12, padding: "20px 24px", width: "100%", marginBottom: 40 }}>
+          <p style={{ fontSize: 10, letterSpacing: 3, color: theme.accent, textTransform: "uppercase", marginBottom: 16 }}>⛪ Program</p>
+          {wedding.program.map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 }}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < wedding.program.length - 1 ? `0.5px solid ${theme.accentLight}` : "none" }}
+            >
+              <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 14, color: theme.accent, minWidth: 72, textAlign: "left" }}>
+                {item.time}
+              </span>
+              <span style={{ fontSize: 13, color: theme.primary, textAlign: "right", flex: 1 }}>
+                {item.event}
+              </span>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {!wedding.dressCode && !wedding.program?.length && (
+        <p style={{ color: theme.text, fontStyle: "italic", marginBottom: 32 }}>No details added yet.</p>
+      )}
+
       <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} onClick={onNext}
         style={{ padding: "14px 40px", background: theme.primary, color: theme.cardBg, border: "none", borderRadius: 40, fontSize: 12, letterSpacing: 3, textTransform: "uppercase", cursor: "pointer" }}>
         RSVP Now
@@ -375,16 +432,46 @@ function DetailsPage({ onNext, wedding }) {
 
 function RSVPPage({ onNext, wedding }) {
   const { theme } = wedding;
-  const [form, setForm] = useState({ name: "", attend: null, guests: 1, note: "" });
-  const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
-    if (!form.name || form.attend === null) return;
-    const existing = JSON.parse(localStorage.getItem("rsvps") || "[]");
-    existing.push(form);
-    localStorage.setItem("rsvps", JSON.stringify(existing));
+  const [form, setForm] = useState({
+    name: "",
+    attending: null,
+    message: ""
+  });
+
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    if (!form.name.trim() || form.attending === null) {
+      setError("Please enter your name and select if you're attending.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    const { error: err } = await supabase.from("rsvp").insert([{
+      wedding_id: wedding.id,
+      name: form.name.trim(),
+      attending: form.attending,
+      message: form.message.trim() || null,
+    }]);
+
+    if (err) {
+      console.error("RSVP Insert Error:", err);
+      if (err.message?.includes("row-level security") || err.code === "42501") {
+        setError("RSVP submission blocked. Please ask the couple to enable public inserts.");
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+      setSubmitting(false);
+      return;
+    }
+
     setSubmitted(true);
-    setTimeout(onNext, 2000);
+    setTimeout(onNext, 2200);
   };
 
   if (submitted) {
@@ -393,48 +480,85 @@ function RSVPPage({ onNext, wedding }) {
         style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", textAlign: "center", padding: 32, background: theme.bg }}>
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-          <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 36, color: theme.primary, fontStyle: "italic", marginBottom: 8 }}>See you there!</h2>
+          <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 36, color: theme.primary, fontStyle: "italic", marginBottom: 8 }}>Thank you!</h2>
           <p style={{ fontSize: 13, color: theme.text }}>Your RSVP has been received.</p>
         </motion.div>
       </motion.div>
     );
   }
 
-  const inputStyle = { width: "100%", padding: "12px 16px", border: `0.5px solid ${theme.accentLight}`, borderRadius: 8, background: theme.cardBg, fontSize: 14, color: theme.primary, outline: "none", fontFamily: "inherit" };
+  const inputStyle = {
+    width: "100%", padding: "12px 16px", border: `0.5px solid ${theme.accentLight}`,
+    borderRadius: 8, background: theme.cardBg, fontSize: 14,
+    color: theme.primary, outline: "none", fontFamily: "inherit",
+  };
 
   return (
     <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
       style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 24px", maxWidth: 480, margin: "0 auto", textAlign: "center", background: theme.bg }}>
+
       <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 12, letterSpacing: 5, color: theme.accent, textTransform: "uppercase", marginBottom: 12 }}>kindly reply</p>
       <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(28px,6vw,44px)", color: theme.primary, fontStyle: "italic", marginBottom: 32 }}>Will you join us?</h2>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%", marginBottom: 24 }}>
-        <input style={inputStyle} placeholder="Your full name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+        <input
+          style={inputStyle}
+          placeholder="Your full name *"
+          value={form.name}
+          onChange={e => setForm({ ...form, name: e.target.value })}
+        />
+
         <div style={{ display: "flex", gap: 12 }}>
           {["Joyfully accepts", "Regretfully declines"].map((label, i) => {
-            const isSelected = form.attend === (i === 0) && form.attend !== null;
+            const isSelected = form.attending === (i === 0);
             return (
-              <button key={i} onClick={() => setForm({ ...form, attend: i === 0 })}
-                style={{ flex: 1, padding: "12px 8px", border: `1.5px solid ${isSelected ? theme.primary : theme.accentLight}`, borderRadius: 8, background: isSelected ? theme.primary : theme.cardBg, color: isSelected ? theme.cardBg : theme.text, fontSize: 12, cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit" }}>
+              <button
+                key={i}
+                onClick={() => setForm({ ...form, attending: i === 0 })}
+                style={{
+                  flex: 1, padding: "12px 8px",
+                  border: `1.5px solid ${isSelected ? theme.primary : theme.accentLight}`,
+                  borderRadius: 8,
+                  background: isSelected ? theme.primary : theme.cardBg,
+                  color: isSelected ? theme.cardBg : theme.text,
+                  fontSize: 12, cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit"
+                }}
+              >
                 {label}
               </button>
             );
           })}
         </div>
-        {form.attend && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, background: theme.cardBg, border: `0.5px solid ${theme.accentLight}`, borderRadius: 8, padding: "10px 16px" }}>
-              <span style={{ fontSize: 13, color: theme.text, flex: 1 }}>Number of guests</span>
-              <button onClick={() => setForm({ ...form, guests: Math.max(1, form.guests - 1) })} style={{ width: 28, height: 28, border: `0.5px solid ${theme.accentLight}`, borderRadius: "50%", background: "none", cursor: "pointer", color: theme.primary, fontSize: 16 }}>−</button>
-              <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, color: theme.primary, minWidth: 24, textAlign: "center" }}>{form.guests}</span>
-              <button onClick={() => setForm({ ...form, guests: Math.min(10, form.guests + 1) })} style={{ width: 28, height: 28, border: `0.5px solid ${theme.accentLight}`, borderRadius: "50%", background: "none", cursor: "pointer", color: theme.primary, fontSize: 16 }}>+</button>
-            </div>
-          </motion.div>
-        )}
-        <textarea style={{ ...inputStyle, resize: "none", height: 80 }} placeholder="A note for the couple (optional)" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
+
+        <textarea
+          style={{ ...inputStyle, resize: "none", height: 100 }}
+          placeholder="A sweet note for the couple (optional)"
+          value={form.message}
+          onChange={e => setForm({ ...form, message: e.target.value })}
+        />
       </div>
-      <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} onClick={handleSubmit}
-        style={{ padding: "14px 48px", background: theme.primary, color: theme.cardBg, border: "none", borderRadius: 40, fontSize: 12, letterSpacing: 3, textTransform: "uppercase", cursor: "pointer", opacity: form.name && form.attend !== null ? 1 : 0.5 }}>
-        Send RSVP
+
+      {error && <p style={{ color: "#c0392b", fontSize: 13, marginBottom: 16, textAlign: "center" }}>{error}</p>}
+
+      <motion.button
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={handleSubmit}
+        disabled={submitting || !form.name.trim() || form.attending === null}
+        style={{
+          padding: "14px 48px",
+          background: theme.primary,
+          color: theme.cardBg,
+          border: "none",
+          borderRadius: 40,
+          fontSize: 12,
+          letterSpacing: 3,
+          textTransform: "uppercase",
+          cursor: "pointer",
+          opacity: (form.name.trim() && form.attending !== null && !submitting) ? 1 : 0.6
+        }}
+      >
+        {submitting ? "Sending..." : "Send RSVP"}
       </motion.button>
     </motion.div>
   );
@@ -442,7 +566,9 @@ function RSVPPage({ onNext, wedding }) {
 
 function ThankYouPage({ wedding }) {
   const { theme } = wedding;
-  const hearts = Array.from({ length: 12 }, (_, i) => ({ left: `${5 + Math.random() * 90}%`, delay: Math.random() * 3, dur: 3 + Math.random() * 2 }));
+  const hearts = Array.from({ length: 12 }, (_, i) => ({
+    left: `${5 + Math.random() * 90}%`, delay: Math.random() * 3, dur: 3 + Math.random() * 2,
+  }));
   return (
     <motion.div variants={pageVariants} initial="initial" animate="animate"
       style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: 40, textAlign: "center", position: "relative", overflow: "hidden", background: theme.bg }}>
@@ -485,12 +611,85 @@ function NavDots({ current, total, theme }) {
 // ── Root ──────────────────────────────────────────────────────────────────────
 const PAGES = [EnvelopePage, CoverPage, DateTimePage, VenuePage, StoryPage, GalleryPage, DetailsPage, RSVPPage, ThankYouPage];
 
-export default function WeddingInvite() {
+export default function WeddingInvite({ adminId }) {
   const [page, setPage] = useState(0);
-  const wedding = buildWedding();
-  const { theme } = wedding;
+  const [wedding, setWedding] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchWedding = async () => {
+      setLoading(true);
+      try {
+        const WEDDING_ID = process.env.REACT_APP_WEDDING_ID;
+
+        const { data: w, error: wErr } = await supabase
+          .from("weddings")
+          .select("*")
+          .eq("id", WEDDING_ID)
+          .single();
+
+        if (wErr || !w) throw new Error("Wedding not found");
+
+        const theme = THEMES[w.theme_id] || DEFAULT_THEME;
+        const dateLabel = formatDateLabel(w.date);
+        const day = formatDay(w.date);
+        const timeFormatted = formatTime(w.time);
+        const mapsUrl = buildMapsUrl(w.address);
+
+        // ── Parse program
+        const parseProgram = () => {
+          try {
+            const p = typeof w.program === "string" ? JSON.parse(w.program) : w.program;
+            return Array.isArray(p) ? p : [];
+          } catch { return []; }
+        };
+
+        // ── Parse milestone
+        const parseMilestone = () => {
+          try {
+            const m = typeof w.milestone === "string" ? JSON.parse(w.milestone) : w.milestone;
+            return Array.isArray(m) ? m : [];
+          } catch { return []; }
+        };
+
+        setWedding({
+          id: w.id,
+          bride: w.bride || DEFAULTS.bride,
+          groom: w.groom || DEFAULTS.groom,
+          rawDate: w.date,
+          dateLabel: dateLabel || DEFAULTS.dateLabel,
+          day: day || DEFAULTS.day,
+          time: timeFormatted || DEFAULTS.time,
+          venue: w.venue || DEFAULTS.venue,
+          address: w.address || DEFAULTS.address,
+          dressCode: w.dress_code || DEFAULTS.dressCode,
+          mapsUrl,
+          story: parseMilestone(),   // ← reads from milestone column
+          photos: Array.isArray(w.photos) ? w.photos : [],
+          program: parseProgram(),
+          theme,
+        });
+      } catch (err) {
+        console.error("WeddingInvite fetch error:", err.message);
+      }
+      setLoading(false);
+    };
+
+    fetchWedding();
+  }, []);
+
+  if (loading) return <LoadingScreen />;
+  if (!wedding) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#fdf6ee" }}>
+      <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: "#c9956b", fontStyle: "italic" }}>
+        Wedding not found.
+      </p>
+    </div>
+  );
+
   const next = () => setPage(p => Math.min(p + 1, PAGES.length - 1));
   const Page = PAGES[page];
+  const { theme } = wedding;
 
   return (
     <div style={{ background: theme.bg, minHeight: "100vh", fontFamily: "Georgia, 'Times New Roman', serif" }}>
